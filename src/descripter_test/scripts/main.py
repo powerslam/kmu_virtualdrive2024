@@ -18,7 +18,7 @@ class DescriptorTest():
         rospy.init_node('descriptor_test') 
         rospy.Subscriber('/image_jpeg/compressed', CompressedImage, self.func)
 
-        self.img = None
+        self.img, self.hsv, self.gray = None, None, None
         self.bridge = CvBridge()
         self.get_image = lambda msg: self.bridge.compressed_imgmsg_to_cv2(msg)
 
@@ -26,7 +26,6 @@ class DescriptorTest():
     def func(self, msg: CompressedImage):
         self.img = self.get_image(msg)
         cx1, cx2, cy1, cy2 = self.find_cone()
-        #print(cx1, cx2, cy1, cy2)
         
         if not (cx1 == -1 and cx2 == -1 and cy1 == -1 and cy2 == -1):
             cone = self.img[cy1:cy2, cx1:cx2]
@@ -36,12 +35,10 @@ class DescriptorTest():
         cv2.imshow('image', self.img)
         cv2.waitKey(1)
 
+    # 공통 수정 사항
+        # 영역 크기에 따른 bbox 비율 조정
+        # 거리 별로 체크하기 
     def find_cone(self):
-        h, w, _ = self.img.shape
-
-        gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
-        hsv = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
-
         # 주황색 영역에 대한 색상범위
         o_lo = np.array([0, 180, 30])
         o_hi = np.array([15, 255, 255])
@@ -52,7 +49,7 @@ class DescriptorTest():
         r_hi = np.array([0, 255, 255])
 
         # 색상범위에 대한 mask 값
-        o_mask = cv2.inRange(hsv, o_lo, o_hi)
+        o_mask = cv2.inRange(self.hsv, o_lo, o_hi)
         cv2.imshow('o_mask', o_mask)
         
         # 빨간색 영역은 라바콘의 밝은 영역이랑 겹치는 경우가 있어서
@@ -63,9 +60,9 @@ class DescriptorTest():
         # 비스무리한 빨간 영역(신호등 적색 신호)은 제거하고, 주황 영역만 구하는 코드 -> 일단 스킵
         # rev_red = cv2.bitwise_and(gray, gray, mask=cv2.bitwise_not(r_mask))
         # cone = cv2.bitwise_and(rev_red, rev_red, mask=o_mask)
-        cone = cv2.bitwise_and(gray, gray, mask=o_mask)
+        cone = cv2.bitwise_and(self.gray, self.gray, mask=o_mask)
 
-        # 찌꺼지 제거 후 빈칸 채우기 - 필요하지 않을 수도 있음
+        # 후추 제거 후 빈칸 채우기 - 필요하지 않을 수도 있음
         k = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
         erode = cv2.morphologyEx(cone, cv2.MORPH_ERODE, k)
         
@@ -77,6 +74,8 @@ class DescriptorTest():
         cone[cone > 0] = 255
         area_indices = np.where(cone > 0)
         if len(area_indices[0]):
+            h, w, _ = self.img.shape
+
             y1, y2 = np.min(area_indices[0]), np.max(area_indices[0])
             x1, x2 = np.min(area_indices[1]), np.max(area_indices[1])
 
@@ -88,8 +87,42 @@ class DescriptorTest():
 
             return x1, x2, y1, y2
         
-        else:
-            return -1, -1, -1, -1
+        return -1, -1, -1, -1
+
+    # 사람은 바지색 보고 판단하기
+    def find_person(self):
+        gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
+        hsv = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
+
+        # 남색 영역(바지)에 대한 색상범위
+        # 90, 110, 160, 0, 255
+        b_lo = np.array([90, 160, 0])
+        b_hi = np.array([110, 255, 255])
+
+        # 색상범위에 대한 mask 값
+        b_mask = cv2.inRange(hsv, b_lo, b_hi)
+        cv2.imshow('b_mask', b_mask)
+        
+        person = cv2.bitwise_and(gray, gray, mask=b_mask)
+
+        person[person > 0] = 255
+        area_indices = np.where(person > 0)
+        if len(area_indices[0]):
+            h, w, _ = self.img.shape
+
+            y1, y2 = np.min(area_indices[0]), np.max(area_indices[0])
+            x1, x2 = np.min(area_indices[1]), np.max(area_indices[1])
+
+            # 확인 후 수정
+            y1 = max(y1 - 10, 0)
+            y2 = min(y2 + 30, h)
+
+            x1 = max(x1 - 40, 0)
+            x2 = min(x2 + 35, w)
+
+            return x1, x2, y1, y2
+        
+        return -1, -1, -1, -1
 
 if __name__ == '__main__':
     try:
