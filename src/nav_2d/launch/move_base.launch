@@ -1,0 +1,25 @@
+<launch>
+    <node pkg = "move_base" type="move_base" name="move_base" output="screen">
+        <rosparam file = "$(find nav_2d)/params/costmap_common_params.yaml" command="load" ns="global_costmap"/>
+        <rosparam file = "$(find nav_2d)/params/costmap_common_params.yaml" command="load" ns="local_costmap"/>
+
+        <rosparam file = "$(find nav_2d)/params/global_costmap_params.yaml" command="load" />
+        <rosparam file = "$(find nav_2d)/params/local_costmap_params.yaml" command="load" />
+
+        <param name = "base_global_planner" value="global_planner/GlobalPlanner"/>
+        <param name = "use_dijkstr" value="true"/>
+        <param name = "planer_frequency" value="5.0"/>
+        <param name = "bplanner_patience" value="5.0"/>
+
+        <!-- 아커만 스타일에 적합한 local planner 임 -->
+        <param name = "base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>
+        <rosparam file ="$(find nav_2d)/params/teb_local_planner_params.yaml" command="load"/>
+        <param name="controller_frequncy" value="10.0"/>
+        <param name="controller_patience" value="7.0"/> 
+
+        <param name="clearing_rotation_allowed" value="false"/>
+        <remap from="odom" to="/odometry/filtered"/>
+    </node>
+    
+    <node pkg = "nav_2d" type="cmd_vel_to_ackermann.py" name="cmd_vel_to_ackermann" />
+</launch>
