@@ -1,9 +1,0 @@
-<launch>
-    <!-- map setting -->
-    <arg name = "map_file" default = "$(find slam_nav)/maps/map.yaml"/>
-    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"/>
-
-    <!-- localization -->
-    <include file="$(find nav_2d)/launch/amcl.launch"/>
-    <include file="$(find nav_2d)/launch/move_base.launch"/>
-</launch>
