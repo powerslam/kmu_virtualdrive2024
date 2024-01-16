@@ -1,0 +1,43 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/foscar/kmu_virtualdrive2024/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/racecar/ackermann_cmd_mux/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/amcl/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/base_local_planner/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/carrot_planner/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/clear_costmap_recovery/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/costmap_2d/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/dwa_local_planner/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/global_planner/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/map_server/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/move_base/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/move_slow_and_clear/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/nav_core/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/navfn/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/obstacle_detect/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/robot_localization/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/rotate_recovery/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/sensor/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/slam_nav/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/teb_local_planner/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/vesc/vesc_ackermann/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/vesc/vesc_driver/include/**",
+        "/home/foscar/kmu_virtualdrive2024/src/navigation/voxel_grid/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
