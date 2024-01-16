@@ -19,5 +19,6 @@ include_directories(
 
 catkin_install_python(PROGRAMS
    src/obstacle.py
+   src/index.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
