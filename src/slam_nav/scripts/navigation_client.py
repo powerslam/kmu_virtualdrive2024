@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import rospy
+import pickle
 
 from geometry_msgs.msg import PoseWithCovarianceStamped
 
@@ -17,23 +18,24 @@ class NavigationClient:
         self.client.wait_for_server()
         self.goal_list = []
         
-        self.start = MoveBaseGoal()
-        self.start.target_pose.header.frame_id='map'
-        self.start.target_pose.pose.orientation.w=1.0
-        
-        self.goal_list.append(self.start)
+        with open('/home/foscar/kmu_virtualdrive2024/src/slam_nav/scripts/waypoint.pkl', 'rb') as file:
+            pt_list = pickle.load(file)
 
-        self.goal=MoveBaseGoal()
-        self.goal.target_pose.header.frame_id='map'
-        self.goal.target_pose.pose.position.x=9.502006862515874
-        self.goal.target_pose.pose.position.y=-9.19892214009349
-        self.goal.target_pose.pose.orientation.z=-0.38363470004760497
-        self.goal.target_pose.pose.orientation.w=0.9234849305318329
+            for _pt in pt_list:
+                pt = MoveBaseGoal()
+                pt.target_pose.header.frame_id = 'map'
+                pt.target_pose.pose.position.x = _pt.position.x
+                pt.target_pose.pose.position.y = _pt.position.y
+                pt.target_pose.pose.orientation.z = _pt.orientation.z
+                pt.target_pose.pose.orientation.w = _pt.orientation.w
+                
+                self.goal_list.append(pt)
 
-        self.goal_list.append(self.goal)
+        self.goal_list.extend(self.goal_list[::-1])
 
-        self.sequence=0
-        self.start_time=rospy.Time.now()
+        # print(self.goal_list)
+        self.sequence = 0
+        self.start_time = rospy.Time.now()
 
         self.dist = lambda pt: ((self.now_pose.x - pt.x) ** 2 + (self.now_pose.y - pt.y) ** 2) ** 0.5
 
@@ -41,14 +43,19 @@ class NavigationClient:
         self.now_pose = msg.pose.pose.position
 
     def run(self):
+        #print('hi1')
         if not self.now_pose: return
+        #print('hi2')
         if self.client.get_state() != GoalStatus.ACTIVE:
-            self.sequence = (self.sequence + 1) % 2
+            #print('hi3') 
+            self.sequence = (self.sequence + 1) % len(self.goal_list)
             self.client.send_goal(self.goal_list[self.sequence])
-        
-        elif self.dist(self.goal_list[self.sequence].target_pose.pose.position) < 0.1:
-            self.stop()
+            print(self.goal_list[self.sequence])
 
+        elif self.dist(self.goal_list[self.sequence].target_pose.pose.position) < 0.1:
+            #print('hi4')
+            self.stop()
+        #print('hi5')    
         # if self.client.get_state() != GoalStatus.ACTIVE:
         #     self.start_time=rospy.Time.now()
         #     self.sequence=(self.sequence+1)%2
@@ -65,9 +72,11 @@ def main():
     nc = NavigationClient()
     rate = rospy.Rate(10)
 
+    # rospy.spin()
     while not rospy.is_shutdown():
         nc.run()
         rate.sleep()
+
 
 if __name__=='__main__':
     main()

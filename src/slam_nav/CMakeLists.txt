@@ -25,6 +25,7 @@ target_link_libraries(lidar_convert ${catkin_LIBRARIES})
 
 catkin_install_python(PROGRAMS
    scripts/pub_odom.py
+   scripts/save_waypoint.py
    scripts/navigation_client.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
