@@ -1,9 +1,3 @@
-# 1/15 정면 각도 수정 
-# 3.5 ~ 1.3m 이내의 장애물 판단
-# 장애물 중점 위치 (아마 자동차 중심으로 각도로 표현해야 함.)
-# 내가 만든 정보 펍 하는 코드까지 완성하고 집 가야함. 
-# 벽에 가까이 있을 경우 장애물이 벽과 구별
-# 라이다 점들을 dbscan 해서 노이즈 제거 
 import rospy
 from sensor_msgs.msg import LaserScan
 from math import *
@@ -108,13 +102,17 @@ class Turtle_sub:
                     obstacle_flag = 0
                     index_two = 0
                     print(f"insert : {obstacle_index}")
-        #obstacle_data = Float32MultiArray(data=[])
-        #for index in range(1,obstacle_index+1):
-        #    obstacle_data.data.append(obstacle_index)
-        #    obstacle_data.data.append(obstacle_start[index])
-        #    obstacle_data.data.append(obstacle_middle[index-1])
-        #    obstacle_data.data.append(obstacle_finish[index-1])            
-        #self.obstacle_pub.publish(obstacle_data)
+        obstacle_data = Float32MultiArray(data=[])
+        for index in range(1,obstacle_index+1):
+            obstacle_data.data.append(obstacle_index)
+            obstacle_data.data.append(obstacle_start[index])
+            obstacle_data.data.append(obstacle_middle[index-1])
+            obstacle_data.data.append(obstacle_finish[index-1])   
+            obstacle_data.data.append(value_start[index])
+            obstacle_data.data.append(value_middle[index-1])         
+            obstacle_data.data.append(value_finish[index-1])         
+            
+        self.obstacle_pub.publish(obstacle_data)
         
         print(f"장애물 개수 : {obstacle_index}")  
         for index in range(1,obstacle_index+1):
