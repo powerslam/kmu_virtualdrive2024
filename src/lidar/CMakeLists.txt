@@ -3,13 +3,19 @@ project(lidar)
 
 find_package(catkin REQUIRED COMPONENTS
   rospy
+  std_msgs
+  message_generation
 )
 
-catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES lidar
-#  CATKIN_DEPENDS rospy
-#  DEPENDS system_lib
+add_message_files(
+  FILES  
+  Obstacle.msg
+  ObstacleArray.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
 )
 
 include_directories(
@@ -17,8 +23,10 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-catkin_install_python(PROGRAMS
-   src/obstacle.py
-   src/index.py
-   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+catkin_install_python(
+  PROGRAMS
+  src/obstacle.py
+  src/index.py
+  src/main.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )

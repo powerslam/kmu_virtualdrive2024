@@ -1,0 +1,4 @@
+float32 start_deg
+float32 start_dist
+float32 end_deg
+float32 end_dist
