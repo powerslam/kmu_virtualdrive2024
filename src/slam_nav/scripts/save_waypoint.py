@@ -26,12 +26,12 @@ class NavigationClient:
         if not self.pose_list:
             self.pose_list += [msg.pose.pose]
 
-        elif self.dist(msg) > 0.5:
+        elif self.dist(msg) > 0.05:
             self.pose_list += [msg.pose.pose]
 
 def main():
     try:
-        rospy.init_node('navigaion_client')
+        rospy.init_node('navigation_client')
         nc = NavigationClient()
         rospy.spin()
 

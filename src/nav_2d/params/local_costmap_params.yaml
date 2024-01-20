@@ -14,8 +14,8 @@ local_costmap:
     enabled: true
     obstacle_range: 5.5
     raytrace_range: 6.0
-    inflation_radius: 0.1
-    track_unkown_space: true
+    inflation_radius: 0.1 
+    track_unkown_space: true 
     combination_method: 1
     observation_sources: laser_scan_sensor
     laser_scan_sensor: { data_type: LaserScan, topic: scan, marking: true, clearing: true }

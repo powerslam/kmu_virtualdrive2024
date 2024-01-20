@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="slam_nav" type="save_waypoint.py" name="save_waypoint"/>
+
+    <!-- localization -->
+    <include file="$(find slam_nav)/launch/navigation.launch"/>
+</launch>

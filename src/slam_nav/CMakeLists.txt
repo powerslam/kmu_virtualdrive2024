@@ -27,5 +27,7 @@ catkin_install_python(PROGRAMS
    scripts/pub_odom.py
    scripts/save_waypoint.py
    scripts/navigation_client.py
+   scripts/pure_pursuit_test.py
+   scripts/navigation_client_copy.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

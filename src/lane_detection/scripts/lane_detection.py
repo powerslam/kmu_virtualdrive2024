@@ -47,8 +47,8 @@ class LaneDetection():
 
         src_pt = np.array([
             [0, 420],
-            [270, 260],
-            [w - 270, 260],
+            [235, 280],
+            [w - 235, 280],
             [w, 420]
         ], dtype=np.float32)
 

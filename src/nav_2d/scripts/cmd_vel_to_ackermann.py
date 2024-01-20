@@ -13,7 +13,6 @@ class Cmd2Ack:
         self.msg = AckermannDriveStamped()
         self.msg.header.frame_id = 'odom'
 
-
     def convert_trans_rot_vel_to_steering_angle(self, v, omega, wheelbase):
         if omega == 0 or v == 0:
             return 0

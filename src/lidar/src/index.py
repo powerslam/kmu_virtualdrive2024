@@ -3,6 +3,7 @@
 # 장애물 중점 위치 (아마 자동차 중심으로 각도로 표현해야 함.)
 # 내가 만든 정보 펍 하는 코드까지 완성하고 집 가야함. 
 # 벽에 가까이 있을 경우 장애물이 벽과 구별
+# 라이다 점들을 dbscan 해서 노이즈 제거 
 import rospy
 from sensor_msgs.msg import LaserScan
 from math import *
@@ -15,9 +16,8 @@ class Turtle_sub:
         self.scan_msg = LaserScan()
         self.obstacle_pub = rospy.Publisher("/obstacle_info", Float32MultiArray, queue_size=10)
     def lidar_CB(self,msg):
-        cnt = 1
-        index_avg = 0
-        index_sum = 0 
+        
+        index_two =0 
         obstacle_index = 0 # 장애물 개수
         obstacle_flag = 0 # 현재 장애물 인덱싱 중인가?
         prev_flag = 0 
@@ -29,7 +29,11 @@ class Turtle_sub:
         degree_angle_increment = self.scan_msg.angle_increment * 180/pi
         middle_index = 0
         obstacle_middle= []
-
+        value_middle=[]
+        obstacle_start= []
+        value_start=[]
+        obstacle_finish = []
+        value_finish = []
         #print(self.scan_msg)
         #print(degree_min)
         #print(degree_max)
@@ -43,31 +47,41 @@ class Turtle_sub:
             if -180 < degrees[index] < -170 :
                print(f"각도 : {degrees[index]} 정면거리 : {value}")
             
-            if (-180 < degrees[index] < -145 or 145< degrees[index]< 180) and 0 <= value < 3.5:
+            if (-180 < degrees[index] < -135 or 135< degrees[index]< 180) and 0 <= value < 3.5:
                 if obstacle_flag == 0:  # 장애물 인덱스 판단을 실시할 때
-                    index_sum += degrees[index]
+                    
                     index += 1
                     obstacle_flag = 1
                     prev_flag = degrees[index]
                     start_flag = degrees[index]
+                    start_value = value
+                    prev_value = value
+                    obstacle_start.insert(obstacle_index,start_flag)
+                    value_start.insert(obstacle_index,start_value)
                     print(f"1: value:  {value} , index : {degrees[index]}")
-                    start_flag = degrees[index]
                     #print(f"start: {start_flag}")
-                elif obstacle_flag ==1 and abs(degrees[index] - prev_flag) < 2.0:
+                elif obstacle_flag ==1 and abs(degrees[index] - prev_flag) < 8:
                     obstacle_flag =1
                     index_two =1
-                    index_sum += degrees[index]
-                    cnt += 1
+                    
                     prev_flag = degrees[index]
+                    prev_value = value
+
                     print(f"2: value:  {value} , index : {degrees[index]}")
 
-                elif obstacle_flag == 1 and abs(degrees[index] - prev_flag) >= 2.0:  # 이제는 장애물 한 턴이 끝났다고 생각해야 함
+                elif obstacle_flag == 1 and abs(degrees[index] - prev_flag) >= 8:  # 이제는 장애물 한 턴이 끝났다고 생각해야 함
                     obstacle_flag = 0
                     finish_flag = prev_flag
-                    index_sum = 0
+                    finish_value = prev_value
+
                     obstacle_index += 1
-    
+                    print("obstacle_append")
+                    
+                    obstacle_finish.insert(obstacle_index,finish_flag)
+                    value_finish.insert(obstacle_index,finish_value)
                     middle_index = (start_flag + finish_flag)/2.0
+                    middle_value = (finish_value+start_value)/2.0
+                    value_middle.insert(obstacle_index,middle_value)
                     obstacle_middle.insert(obstacle_index,middle_index)
                     print(f"insert : {obstacle_index}")
 
@@ -78,20 +92,36 @@ class Turtle_sub:
             else :
                 if(obstacle_flag==1 and index_two==1):
                     obstacle_index += 1
-            
+                    print("obstacle_append")
                     finish_flag = prev_flag
+                    finish_value= prev_value
+                    obstacle_finish.insert(obstacle_index,finish_flag)
+                    value_finish.insert(obstacle_index,finish_value)
                     middle_index = (start_flag + finish_flag)/2.0
+                    middle_value = (finish_value+start_value)/2.0
+                    value_middle.insert(obstacle_index,middle_value)
                     obstacle_middle.insert(obstacle_index,middle_index)
+                    
                     #print(f"middle_index : {middle_index}")
                     start_flag =0
                     finish_flag =0
                     obstacle_flag = 0
                     index_two = 0
                     print(f"insert : {obstacle_index}")
+        #obstacle_data = Float32MultiArray(data=[])
+        #for index in range(1,obstacle_index+1):
+        #    obstacle_data.data.append(obstacle_index)
+        #    obstacle_data.data.append(obstacle_start[index])
+        #    obstacle_data.data.append(obstacle_middle[index-1])
+        #    obstacle_data.data.append(obstacle_finish[index-1])            
+        #self.obstacle_pub.publish(obstacle_data)
+        
         print(f"장애물 개수 : {obstacle_index}")  
         for index in range(1,obstacle_index+1):
-            print(f"middle index {index} : {obstacle_middle[index-1]}")
-        # 장애물 개수만큼 반복문 돌면서 배열안에 저장된 장애물의 중심 각도를 같이 프린트 해야함.       
+            print(f"start index {index} : {obstacle_start[index-1]} start_value : {value_start[index-1]}")
+            print(f"middle index {index} : {obstacle_middle[index-1]} middle_value : {value_middle[index-1]}")
+            print(f"finish index {index} : {obstacle_finish[index-1]} finish_value : {value_finish[index-1]}")
+      
         print("here")
 
 def main():

@@ -2,12 +2,15 @@
 
 import rospy
 import pickle
+from math import atan2, sqrt
 
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped,Twist
 
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from actionlib_msgs.msg import GoalStatus
 import actionlib
+import tf 
+
 
 class NavigationClient:
     def __init__(self):
@@ -31,10 +34,10 @@ class NavigationClient:
                 
                 self.goal_list.append(pt)
 
-        self.goal_list.extend(self.goal_list[::-1])
+        self.goal_list.extend(self.goal_list[::-1]) #받아온 목표 좌표 모음
 
         # print(self.goal_list)
-        self.sequence = 0
+        self.sequence = 0 # 밫아온 좌표모음의 index
         self.start_time = rospy.Time.now()
 
         self.dist = lambda pt: ((self.now_pose.x - pt.x) ** 2 + (self.now_pose.y - pt.y) ** 2) ** 0.5
@@ -53,22 +56,13 @@ class NavigationClient:
             print(self.goal_list[self.sequence])
 
         elif self.dist(self.goal_list[self.sequence].target_pose.pose.position) < 0.1:
-            #print('hi4')
             self.stop()
-        #print('hi5')    
-        # if self.client.get_state() != GoalStatus.ACTIVE:
-        #     self.start_time=rospy.Time.now()
-        #     self.sequence=(self.sequence+1)%2
-        #     self.client.send_goal(self.goal_list[self.sequence])
-        # else:
-        #     if (rospy.Time.now().to_sec() - self.start_time.to_sec()) > 30.0:
-        #         self.stop()
         
     def stop(self):
         self.client.cancel_all_goals()
         
 def main():
-    rospy.init_node('navigaion_client')
+    rospy.init_node('navigation_client')
     nc = NavigationClient()
     rate = rospy.Rate(10)
 

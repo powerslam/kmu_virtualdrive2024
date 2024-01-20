@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="slam_nav" type="navigation_client_copy.py" name="navigation_client_copy"/>
+
+    <!-- localization -->
+    <include file="$(find slam_nav)/launch/navigation.launch"/>
+</launch>
