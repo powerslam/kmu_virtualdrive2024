@@ -6,6 +6,8 @@ import rospy
 import numpy as np
 from cv_bridge import CvBridge
 
+# from lidar.msg import Obstacle, ObstacleArray
+from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import CompressedImage
 
 # 러버콘은 카메로 찍었을 때 종료되는 버그가 존재함
@@ -14,10 +16,15 @@ class DescriptorTest():
     def __init__(self):
         rospy.init_node('descriptor_test') 
         rospy.Subscriber('/image_jpeg/compressed', CompressedImage, self.func)
+        rospy.Subscriber('/obstacle_info', Float32MultiArray, self.callback)
 
         self.img, self.hsv, self.gray = None, None, None
+        self.obstacle_info = None
+        
         self.bridge = CvBridge()
         self.get_image = lambda msg: self.bridge.compressed_imgmsg_to_cv2(msg)
+
+        self.pixel_interval = 0.55 / 225
 
         self.kernel3 = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
         self.kernel5 = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
@@ -28,21 +35,40 @@ class DescriptorTest():
         self.hsv = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
         self.gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
 
-        cx1, cx2, cy1, cy2 = self.find_cone()
-        px1, px2, py1, py2 = self.find_person()
+        if len(self.obstacle_info):
+            # print(self.obstacle_info)
 
-        if not (cx1 == -1 and cx2 == -1 and cy1 == -1 and cy2 == -1):
-            cone = self.img[cy1:cy2, cx1:cx2]
-            cv2.rectangle(self.img, (cx1, cy1), (cx2, cy2), (0, 255, 0), 2)
-            cv2.imshow('cone', cone)
+            for info in self.obstacle_info:
+                cv2.circle(self.img, (info, 240), 5, (0, 255, 0), -1)
+
+        # cx1, cx2, cy1, cy2 = self.find_cone()
+        # px1, px2, py1, py2 = self.find_person()
+
+        # if not (cx1 == -1 and cx2 == -1 and cy1 == -1 and cy2 == -1):
+        #     cone = self.img[cy1:cy2, cx1:cx2]
+        #     cv2.rectangle(self.img, (cx1, cy1), (cx2, cy2), (0, 255, 0), 2)
+        #     cv2.imshow('cone', cone)
         
-        if not (px1 == -1 and px2 == -1 and py1 == -1 and py2 == -1):
-            person = self.img[py1:py2, px1:px2]
-            cv2.rectangle(self.img, (px1, py1), (px2, py2), (255, 0, 0), 2)
-            cv2.imshow('person', person)
+        # if not (px1 == -1 and px2 == -1 and py1 == -1 and py2 == -1):
+        #     person = self.img[py1:py2, px1:px2]
+        #     cv2.rectangle(self.img, (px1, py1), (px2, py2), (255, 0, 0), 2)
+        #     cv2.imshow('person', person)
 
         cv2.imshow('image', self.img)
         cv2.waitKey(1)
+
+    def callback(self, msg: Float32MultiArray):
+        self.obstacle_info = msg
+        self.obstacle_info = np.array(msg.data).reshape(-1, 8)
+
+        #print(self.obstacle_info[:, -1])
+
+        mid_degs = self.obstacle_info[:, 2]
+        mid_dist = self.obstacle_info[:, -3]
+
+        print(mid_dist * np.cos(mid_degs * np.pi / 180))
+
+        self.obstacle_info = np.int32(self.obstacle_info[:, -1] / self.pixel_interval + 320)
 
     # 공통 수정 사항
         # 영역 크기에 따른 bbox 비율 조정
@@ -132,6 +158,15 @@ class DescriptorTest():
             return x1, x2, y1, y2
         
         return -1, -1, -1, -1
+
+'''
+차 위치 테스트
+x: -12, y: 0, z: 0
+
+
+
+'''
+
 
 if __name__ == '__main__':
     try:
