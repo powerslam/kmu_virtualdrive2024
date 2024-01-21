@@ -28,6 +28,8 @@ class Turtle_sub:
         value_start=[]
         obstacle_finish = []
         value_finish = []
+        final_value = 0 # 원점으로 부터 떨어진 거리
+        final_angle = 0 
         #print(self.scan_msg)
         #print(degree_min)
         #print(degree_max)
@@ -76,6 +78,11 @@ class Turtle_sub:
                     middle_index = (start_flag + finish_flag)/2.0
                     middle_value = (finish_value+start_value)/2.0
                     value_middle.insert(obstacle_index,middle_value)
+                    if(middle_index<180):
+                        final_angle = 90-(180-middle_index) #중심선으로 부터 떨어진 각도로 측정
+                    else:
+                        final_angle = 90-(-180-middle_index) #중심선으로 부터 떨어진 각도로 측정
+                    final_value = middle_value * cos(final_angle) 
                     obstacle_middle.insert(obstacle_index,middle_index)
                     print(f"insert : {obstacle_index}")
 
@@ -131,3 +138,10 @@ def main():
 
 if __name__ == "__main__": 
     main()
+
+
+
+# 밥먹고 구현하고 3시전까지 완료하고, 계속 되는거 확인하고
+# 로컬, 글로벌 강의 좀 듣다가, 만지작 거리다가 다섯시에 지하철 타고 집가서
+# 밥 먹고 백준 풀다가 성탁이랑 전화하다가
+# 진격거좀 보다가 운동좀 하다가 백준 풀다가 자는 일상
