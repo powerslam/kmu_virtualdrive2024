@@ -18,7 +18,7 @@ class ObstacleDetector:
         deg_min = self.scan_msg.angle_min * 180 / pi # -90
         deg_inc = self.scan_msg.angle_increment * 180 / pi # 90
 
-        roi = self.scan_msg.ranges[180:] + self.scan_msg.ranges[:180]
+        roi = self.scan_msg.ranges[:180][::-1] + self.scan_msg.ranges[180:][::-1]
         roi_degs = [deg_min + deg_inc * index for index in range(len(roi))]
 
         obst_size = 0
