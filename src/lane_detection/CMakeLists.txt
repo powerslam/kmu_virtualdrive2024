@@ -44,6 +44,6 @@ include_directories(
 
 catkin_install_python(
   PROGRAMS
-  scripts/lane_detection.py
+  scripts/main.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )

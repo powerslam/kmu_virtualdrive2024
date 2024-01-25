@@ -20,15 +20,19 @@ class LaneDetection():
         self.bridge = CvBridge()
         self.get_image = lambda msg: self.bridge.compressed_imgmsg_to_cv2(msg)
 
+        self.start_left_x = -1
+        self.start_right_x = -1
+
     def callback(self, msg: CompressedImage) -> None:
         self.img = self.get_image(msg)
         self.h, self.w, _ = self.img.shape
         self.bev_img = self.bev()
+        self.bev_img_draw = self.bev()
 
         self.sliding_window()
 
-        cv2.imshow('img', self.img)
-        cv2.imshow('res', self.bev_img)
+        #cv2.imshow('img', self.img)
+        cv2.imshow('res', self.bev_img_draw)
         cv2.waitKey(1)
 
     def bev(self):
@@ -74,45 +78,82 @@ class LaneDetection():
     # 기울기가 무한대 == x축 y축 거리가 똑같은 경우 10000 이면 기울기가 무한대
     # ptx == (x, y)
     def get_gradient(self, pt1, pt2):
-        if pt2.x - pt1.x == 0: return 10000
+        if pt2.x - pt1.x == 0: return 320
         
         return (pt2.y - pt1.y) / (pt2.x - pt1.x)
 
     def sliding_window(self):
         lane_info = LaneInformation()
 
-        half = self.w // 2
+        # right lane : 500
+        # left lane : 20
+        nonzero = self.bev_img[:,:,0].nonzero()
+        nonzeroy = np.array(nonzero[0])
+        nonzerox = np.array(nonzero[1])
 
-        left_lane_candi = self.bev_img[:, :half]
-        right_lane_candi = self.bev_img[:, half:]
+        start_left_lane = self.bev_img[:,:,0][430:480, :self.w // 2].nonzero()[1]
+        start_right_lane = self.bev_img[:,:,0][430:480, self.w // 2:].nonzero()[1]
 
-        for height in range(self.h - 1, -1, -10):
-            left_midpts = np.nonzero(left_lane_candi[height])[0]
-            right_midpts = np.nonzero(right_lane_candi[height])[0] + half
+        if len(start_left_lane) == 0:
+            if self.start_left_x == -1:
+                self.start_left_x = 150
+
+            left_midpt_x = self.start_left_x
+
+        else:
+            left_midpt_x = self.start_left_x = int(start_left_lane.mean())
+
+        if len(start_right_lane) == 0:
+            if self.start_right_x == -1:
+                self.start_right_x = 500
+
+            right_midpt_x = self.start_right_x
+
+        else:
+            right_midpt_x = self.start_right_x = int(start_right_lane.mean()) + self.w // 2
+
+        window = 10
+        h_interval = 50
+        x_padding = 60
+
+        # y 값은 480, 430, 380, ....
+        for win in range(window - 1):
+            left_lane_pt = PixelCoord()
+            right_lane_pt = PixelCoord()
+
+            y_min = 480 - (win + 1) * h_interval
+            y_max = 480 - win * h_interval
+
+            left_x_min = left_midpt_x - x_padding
+            left_x_max = left_midpt_x + x_padding
+            cv2.rectangle(self.bev_img_draw, (left_x_min, y_min), (left_x_max, y_max), (255, 0, 0), 1, cv2.LINE_AA)
             
-            if len(left_midpts):
-                left_midpt = PixelCoord()
-                left_midpt.x = np.sum(left_midpts) // len(left_midpts)
-                left_midpt.y = height
+            good_left_inds = ((nonzeroy >= y_min) & (nonzeroy < y_max) & (nonzerox >= left_x_min) &  (nonzerox < left_x_max)).nonzero()[0]
+            if len(good_left_inds) > 50:
+                left_midpt_x = int(nonzerox[good_left_inds].mean())
+                left_lane_pt.x = left_midpt_x
+                left_lane_pt.y = (y_min + y_max) // 2
 
-                lane_info.left_lane_points.append(left_midpt)
-                cv2.circle(self.bev_img, (left_midpt.x, height), 2, (0, 255, 0), -1)
+            right_x_min = right_midpt_x - x_padding
+            right_x_max = right_midpt_x + x_padding
+            cv2.rectangle(self.bev_img_draw, (right_x_min, y_min), (right_x_max, y_max), (0, 255, 0), 1, cv2.LINE_AA)
 
-            if len(right_midpts):
-                right_midpt = PixelCoord()
-                right_midpt.x = np.sum(right_midpts) // len(right_midpts)
-                right_midpt.y = height
-
-                lane_info.right_lane_points.append(right_midpt)
-                cv2.circle(self.bev_img, (right_midpt.x, height), 2, (0, 0, 255), -1)
-
+            good_right_inds = ((nonzeroy >= y_min) & (nonzeroy < y_max) & (nonzerox >= right_x_min) &  (nonzerox < right_x_max)).nonzero()[0]
+            if len(good_right_inds) > 50:
+                right_midpt_x = int(nonzerox[good_right_inds].mean())
+                right_lane_pt.x = right_midpt_x
+                right_lane_pt.y = (y_min + y_max) // 2
+            
+            lane_info.left_lane_points.append(left_lane_pt)
+            lane_info.right_lane_points.append(right_lane_pt)
+        
         lane_info.left_gradient = -10000 if not len(lane_info.left_lane_points) else self.get_gradient(lane_info.left_lane_points[0], lane_info.left_lane_points[-1])
         lane_info.right_gradient = -10000 if not len(lane_info.right_lane_points) else self.get_gradient(lane_info.right_lane_points[0], lane_info.right_lane_points[-1])
         self.lane_info_pub.publish(lane_info)
 
 if __name__ == '__main__':
     try:
-        pub = LaneDetection()
+        _ = LaneDetection()
         rospy.spin()
     
     except rospy.ROSInterruptException:
