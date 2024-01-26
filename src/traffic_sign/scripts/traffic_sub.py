@@ -24,7 +24,11 @@ class TrafficSub():
         
         self.pub_speed = rospy.Publisher('/commands/motor/speed', Float64, queue_size=1)
         self.cmd_msg = Float64()
-        self.rate = rospy.Rate(2)
+
+        # 정지할 때 카메라랑 속도 맞춰야 함
+        self.rate = rospy.Rate(30)
+
+        # 차량 속도에 따라 체크해야 하는 영역이 다름
         self.speed = 1000
 
         self.stream_sign = False
@@ -37,22 +41,25 @@ class TrafficSub():
         self.kernel5 = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
 
         self.img = None
-        self.stop_line_mask = np.zeros(shape=(480, 640, 3))
-        self.stop_line_mask[380:450, 40:520] = 255
         self.hsv = None
 
+        self.stop_line_mask = np.zeros(shape=(480, 640, 3), dtype=np.uint8)
+        self.stop_line_mask[350:430, 40:520] = 255
+
         self.stop = False
+        self.flag = True
 
         self.bridge = CvBridge()
         self.get_image = lambda msg: self.bridge.compressed_imgmsg_to_cv2(msg)
 
     def condition_move(self) -> None:
-        if self.red_light:
+        if self.stop:
             self.cmd_msg.data = 0
 
         else:
             self.cmd_msg.data = self.speed
 
+        # print(self.cmd_msg)
         self.pub_speed.publish(self.cmd_msg)
         self.rate.sleep()
 
@@ -71,9 +78,11 @@ class TrafficSub():
         bev = self.bev_transform()
         res = len(cv2.bitwise_and(bev, self.stop_line_mask).nonzero()[0])
         
-        self.stop = res > 80000
+        if self.flag:
+            self.stop = res > 80000
+        
         if self.stop:
-            print('detect!!!')        
+            self.flag = False   
 
         cv2.imshow('bev', bev)
         cv2.waitKey(1)
@@ -122,7 +131,9 @@ if __name__ == '__main__':
     try:
         pub = TrafficSub()
         while not rospy.is_shutdown():
-            pub.condition_move()        
+            pub.condition_move()
+            pub.rate.sleep()
+
         rospy.spin()
 
     except rospy.ROSInterruptException:
