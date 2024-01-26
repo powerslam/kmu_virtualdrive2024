@@ -37,7 +37,12 @@ class TrafficSub():
         self.kernel5 = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
 
         self.img = None
+        self.stop_line_mask = np.zeros(shape=(480, 640, 3))
+        self.stop_line_mask[380:450, 40:520] = 255
         self.hsv = None
+
+        self.stop = False
+
         self.bridge = CvBridge()
         self.get_image = lambda msg: self.bridge.compressed_imgmsg_to_cv2(msg)
 
@@ -61,39 +66,40 @@ class TrafficSub():
         self.red_light = msg.trafficLightStatus != 33
 
     def chk_stop_line(self, msg: CompressedImage) -> None:
-        if not self.stream_sign:
-            print("don't stream sign")
-            return
-        
-        print('processing...')
         self.img = self.get_image(msg)
-        self.hsv = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
 
-        sign_lo = np.array([0, 200, 200])
-        sign_hi = np.array([180, 255, 255])
+        bev = self.bev_transform()
+        res = len(cv2.bitwise_and(bev, self.stop_line_mask).nonzero()[0])
+        
+        self.stop = res > 80000
+        if self.stop:
+            print('detect!!!')        
 
-        sign = cv2.inRange(self.hsv, sign_lo, sign_hi)
-        sign = cv2.morphologyEx(sign, cv2.MORPH_DILATE, self.kernel3)
-
-        w_lo = np.array([0, 0, 200])
-        w_hi = np.array([180, 64, 255])
-
-        white = cv2.inRange(self.hsv, w_lo, w_hi)
-        white = cv2.morphologyEx(white, cv2.MORPH_DILATE, self.kernel5)
-
-        bev = self.bev_transform(white)
-
-        cv2.imshow('sign', sign)
         cv2.imshow('bev', bev)
         cv2.waitKey(1)
 
-    def bev_transform(self, img: np.ndarray):
+    def bev_transform(self):
         h, w, _ = self.img.shape
+        
+        hsv = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
+        
+        y_lo = np.array([15, 128, 0])
+        y_hi = np.array([40, 255, 255])
+
+        w_lo = np.array([0, 0, 200])
+        w_hi = np.array([179, 64, 255])
+
+        y_img = cv2.inRange(hsv, y_lo, y_hi)
+        w_img = cv2.inRange(hsv, w_lo, w_hi)
+
+        combined = cv2.bitwise_or(y_img, w_img)
+
+        morph = cv2.morphologyEx(combined, cv2.MORPH_OPEN, None)
 
         src_pt = np.array([
             [0, 420],
-            [270, 260],
-            [w - 270, 260],
+            [235, 280],
+            [w - 235, 280],
             [w, 420]
         ], dtype=np.float32)
 
@@ -105,7 +111,11 @@ class TrafficSub():
         ], dtype=np.float32)
 
         warp = cv2.getPerspectiveTransform(src_pt, dst_pt)
-        warp_img = cv2.warpPerspective(img, warp, (w, h))
+        warp_img = cv2.warpPerspective(morph, warp, (w, h))
+
+        warp_img = cv2.cvtColor(warp_img, cv2.COLOR_GRAY2BGR)
+        warp_img[warp_img > 0] = 255
+
         return warp_img
 
 if __name__ == '__main__':
