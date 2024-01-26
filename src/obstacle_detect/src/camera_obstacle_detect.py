@@ -34,7 +34,7 @@ def translation_matrix(vector):
     M[:3, 3] = vector[:3]
     return M
 
-class DescriptorTest():
+class CamObstacleDetect():
     def __init__(self):
         rospy.init_node('descriptor_test') 
         rospy.Subscriber('/image_jpeg/compressed', CompressedImage, self.camera_obstacle_callback)
@@ -139,7 +139,7 @@ class DescriptorTest():
 
 if __name__ == '__main__':
     try:
-        pub = DescriptorTest()
+        pub = CamObstacleDetect()
         rospy.spin()
 
     except rospy.ROSInterruptException:
