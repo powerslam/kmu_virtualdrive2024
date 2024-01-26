@@ -8,7 +8,8 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 add_message_files(
-  FILES  
+  FILES
+  Rotary.msg
   Obstacle.msg
   ObstacleArray.msg
 )
@@ -26,7 +27,6 @@ include_directories(
 catkin_install_python(
   PROGRAMS
   src/obstacle.py
-  src/index.py
-  src/main.py
+  src/rotary.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
