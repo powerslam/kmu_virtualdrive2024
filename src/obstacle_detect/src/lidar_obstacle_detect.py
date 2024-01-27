@@ -5,8 +5,8 @@ import numpy as np
 from sensor_msgs.msg import LaserScan
 
 # publish 데이터
-from lidar.msg import Rotary                    # Rotary에 차량이 어디에 위치해 있는가
-from lidar.msg import Obstacle, ObstacleArray   # 라이다에서 취득한 장애물 정보
+from obstacle_detect.msg import Rotary                    # Rotary에 차량이 어디에 위치해 있는가
+from obstacle_detect.msg import Obstacle, ObstacleArray   # 라이다에서 취득한 장애물 정보
 
 from bisect import bisect_left as lower_bound
 

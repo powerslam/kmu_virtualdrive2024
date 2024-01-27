@@ -6,10 +6,10 @@ import rospy
 import numpy as np
 from cv_bridge import CvBridge
 
-from lidar.msg import ObstacleArray
 from sensor_msgs.msg import CompressedImage
 
-from obstacle_detect.msg import DynamicObstacleInfo, DynamicObstacleInfoArray
+from obstacle_detect.msg import ObstacleArray
+from obstacle_detect.msg import DynamicObstacle, DynamicObstacleArray
 
 def rotation_from_euler(roll=1., pitch=1., yaw=1.):
     si, sj, sk = np.sin(roll), np.sin(pitch), np.sin(yaw)
@@ -82,14 +82,15 @@ class CamObstacleDetect():
         self.img = self.get_image(msg)
         self.hsv = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
         self.gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
-
         
-        data = DynamicObstacleInfoArray(isObstacle=False)
+        data = DynamicObstacleArray(isObstacle=False)
         if self.obstacle_info is not None and len(self.obstacle_info) != 0:
             image_coords = self.ipm_matrix @ self.obstacle_info.T
             image_coords /= image_coords[2]
 
             uv = image_coords[:2, :].T
+
+            # x 좌표가 특정 영역을 벗어나는 경우
             uv = uv[(uv[:, 0] >= 0) & (uv[:, 0] <= 640)]
             
             # print('uv', uv)
@@ -105,7 +106,7 @@ class CamObstacleDetect():
                     _x = -self.obstacle_info[idx][1]
                     _y = self.obstacle_info[idx][0]
 
-                    data.dynamic_obstacles.append(DynamicObstacleInfo(x=_x, y=_y, distance=np.sqrt(_x ** 2 + _y ** 2)))
+                    data.dynamic_obstacles.append(DynamicObstacle(x=_x, y=_y, distance=np.sqrt(_x ** 2 + _y ** 2)))
                     cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (0, 255, 0), 2)
 
                 else:
