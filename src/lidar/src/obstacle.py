@@ -1,9 +1,14 @@
 import rospy
-from math import *
+import numpy as np
+
+# lidar Subscriber 데이터
 from sensor_msgs.msg import LaserScan
+
+# publish 데이터
+from lidar.msg import Rotary                    # Rotary에 차량이 어디에 위치해 있는가
+from lidar.msg import Obstacle, ObstacleArray   # 라이다에서 취득한 장애물 정보
+
 from bisect import bisect_left as lower_bound
-from std_msgs.msg import Float32MultiArray
-from lidar.msg import Obstacle, ObstacleArray
 
 class LidarObstacle:
     def __init__(self):
@@ -12,7 +17,8 @@ class LidarObstacle:
         self.scan_msg = LaserScan()
         rospy.Subscriber("/lidar2D", LaserScan, self.callback)
 
-        self.obstacle_pub = rospy.Publisher("/obstacle_info", ObstacleArray, queue_size = 10)
+        self.obstacle_pub = rospy.Publisher("/obstacle_info", ObstacleArray, queue_size=10)
+        self.rotary_pub = rospy.Publisher("/rotary_info", Rotary, queue_size=10)
         self.degrees = range(-180, 180)
 
     def callback(self, msg: LaserScan):
@@ -54,14 +60,26 @@ class LidarObstacle:
                     middle_index = (obstacle_start_deg + obstacle_prev_deg) / 2
                     middle_value = ranges[min(lower_bound(self.degrees, int(middle_index)), 359)]
 
-                    x = middle_value * sin(middle_index * pi / 180)
-                    y = middle_value * cos(middle_index * pi / 180)
+                    x = middle_value * np.sin(middle_index * np.pi / 180)
+                    y = middle_value * np.cos(middle_index * np.pi / 180)
                     
                     obstacle_arr.obstacle_infos.append(Obstacle(obst_x = x, obst_y = y))
 
                     is_searching_obstacle = False
 
         self.obstacle_pub.publish(obstacle_arr)
+
+        rotary = Rotary()
+        if len(obstacle_arr.obstacle_infos):
+            x = obstacle_arr.obstacle_infos[0].obst_x
+            y = obstacle_arr.obstacle_infos[0].obst_y
+
+            rotary.dis = np.hypot(x, y)
+            rotary.orientation = ord('l') if x < 0 else ord('r')
+
+        else:
+            rotary.dis = -10000
+            rotary.orientation = ord('n') # none => 현재 감지거리 내에 없다는 뜻
 
 def main():
     try:
