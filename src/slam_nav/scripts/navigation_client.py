@@ -85,10 +85,15 @@ class NavigationClient:
         self.L_point = 0
         self.R_point = 0
 
+        self.NO_RIGHTLINE=False
+        self.NO_LEFTLINE=False 
+
         self.pid_controller = pidControl()
         self.start_time = rospy.Time.now()
 
-        self.curve_endpoint = 5 # 코너 끝까지 빠져나올 때까지 속도 유지하기 위함
+        self.CURVE_ENDPOINT = 20
+
+        self.curve_endpoint = self.CURVE_ENDPOINT # 코너 끝까지 빠져나올 때까지 속도 유지하기 위함
         # self.curve_endpoint = True
         self.curve_start = True
         self.corner_count=0
@@ -113,15 +118,11 @@ class NavigationClient:
         self.L_point = msg.left_lane_points
         self.R_point = msg.right_lane_points
 
-        # print(f"왼쪽 포인트 좌표: {self.L_point[8]}")
-        # print(f"오른쪽 포인트 좌표:{self.R_point[8]}")
-        # print('R_curv', self.R_curv)
-
-        L7_point = self.L_point[3].x
-        R7_point = self.R_point[3].x
+        L3_point = self.L_point[3].x
+        R3_point = self.R_point[3].x
         # 1/25 19:46 ==> 4 였음
         reference_quat = self.goal_list[
-            self.sequence + 5
+            self.sequence + 8
         ].target_pose.pose.orientation  # 이전 4
         reference_yaw = self.get_yaw_from_orientation(reference_quat)
         yaw = self.get_yaw_from_orientation(self.now_orientation)
@@ -148,55 +149,34 @@ class NavigationClient:
                 self.control_angle.linear.x = 2.2
                 self.target_vel = 0
                 # self.curve_endpoint = True
-                self.curve_endpoint = 6
-                # 8km/h 일 때 twist2.0
+                self.curve_endpoint = self.CURVE_ENDPOINT
+                # 8km/h 일 때 twist 2.0
 
-            # if 200<=self.L_point<=240 and 480<=self.R_point<=510:
-            #     #차선 유지 범위 내에 있음
-            #     pass
-            mid_point = (L7_point + R7_point) / 2
+            mid_point = (L3_point + R3_point) / 2
 
-            if L7_point == 0 or R7_point == 0:  # 오른쪽이나 왼쪽 차선 없음
-                if L7_point == 0:
-                    if R7_point < 489:  # 너무 우측으로 치우침
-                        self.angle_offset = 0.0000155 * (self.R_point[3].x - 498)
+            mid_r_point = 498
+            mid_l_point = 146
 
-                    if R7_point < 494:  # 너무 우측으로 치우침
-                        self.angle_offset = 0.0000145 * (self.R_point[3].x - 498)
+            C_straight = 1.8
 
-                    elif 496 <= R7_point < 451:
-                        pass
+            if L3_point == 0 or R3_point == 0:  # 오른쪽이나 왼쪽 차선 없음
+                if L3_point == 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
+                    self.angle_offset = C_straight * (mid_r_point - R3_point) / 10000
+                    self.NO_LEFTLINE=True
+                    self.NO_RIGHTLINE=False
+                elif R3_point == 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
+                    self.angle_offset = C_straight * (L3_point - mid_l_point) / 10000
+                    self.NO_RIGHTLINE=True 
+                    self.NO_LEFTLINE=False  
 
-                    elif R7_point < 456:
-                        self.angle_offset = 0.0000145 * (self.R_point[3].x - 498)
-                    else:
-                        self.angle_offset = 0.0000155 * (self.R_point[3].x - 498)
-
-                elif R7_point == 0:
-                    pass
-
-                else:  # 둘다 0인 경우
+                else:  # 둘다 0인 경우 > 아무래도 패쓰
                     self.angle_offset = 0
+                    self.NO_LEFTLINE=self.NO_RIGHTLINE=True
 
             else:
-                if mid_point < 315:
-                    self.angle_offset = 0.0000155 * (self.R_point[3].x - 322)
-                if mid_point < 320:
-                    self.angle_offset = 0.0000145 * (self.R_point[3].x - 322)
-                elif mid_point < 325:
-                    pass
-                elif mid_point < 330:
-                    self.angle_offset = 0.0000145 * (self.R_point[3].x - 322)
-                else:
-                    self.angle_offset = 0.0000155 * (self.R_point[3].x - 322)
-            # if self.R_point[7].x>469:
-            #     self.angle_offset=0.00009*(self.R_point[7].x-320)
+                self.angle_offset = C_straight * (322 - mid_point) / 10000
+                self.NO_RIGHTLINE=self.NO_LEFTLINE=False 
 
-            # elif self.L_point[7].x<251:
-            #     self.angle_offset=-0.00009*(320-self.L_point[7].x)
-            # else:qssssqs
-            #     pass
-            # print(f"차선 보정 값 : {self.angle_offset}")
             """
             self.angle_offset
             회전을 해야될 때 일단 차선 보지 말자 
@@ -213,27 +193,20 @@ class NavigationClient:
         # 회전하는 경우
         if v < 0.4:  # 맨 처음 출발할때
             self.lookahead_distance = 0.8
+
         elif v < 0.9:
             v = 0.8
             k_vel = 0.382
             k_curv = -0.056
             Curv = 1  # Ld 0.3
 
-            # self.lookahead_distance = (k_vel * v) + (k_curv * Curv)
-            # self.lookahead_distance=0.25
             self.lookahead_distance = 0.79
         # 직진하는 경우
+            
         else:
             v = 2
             k_vel = 0.085
             k_curv = 0.021
-
-            # if Curv < 20:
-            #     Curv = 30 #Ld 0.8 min)
-            # elif Curv < 30:
-            #     Curv = 31# Ld 0.821000
-            # else:
-            #     Curv = 32
             Curv = 34
 
             self.lookahead_distance = (k_vel * v) + (k_curv * Curv)
@@ -282,88 +255,44 @@ class NavigationClient:
         angle_diff_size = abs(angle_difference)
         test = abs(angle_difference)
 
+        corner_gain_min = 4.93
+
         # 이 친구가 왔다리 갔다리
         if self.target_vel == 0.8:
-            # print("I'm turning")
-            # 1/25 19:46 ==> sequence + 4 일 때 0.973 이었음
-            # 1/25 19:46 ==> sequence + 3 일 때 0.984 이었음
-
-            # 1/25: test_test = 1. + test * 0.9843
-
             test_test = 1.0 + test * 0.99
 
-            test_test = np.clip(test_test,5.5,10)
+            test_test = np.clip(test_test, corner_gain_min, 10)
 
             print(f"곡선에서 gain값: {test_test}")
-            self.corner_count+=1
+            self.corner_count += 1
             self.gain = test_test
-
-            # if 0<=angle_diff_size<0.05:
-            #     self.gain=1.03
-            # elif 0.05<=angle_diff_size<0.08: #0.055대
-            #     self.gain=1.069
-            # elif 0.08<=angle_diff_size<0.10: #0.08대
-            #     self.gain=1.071
-            # elif 0.10<=angle_diff_size<0.15: #0.12, 0.18대
-            #     self.gain=1.073
-            # elif 0.15<=angle_diff_size<0.2:
-            #     self.gain=1.078
-            # elif 0.2<=angle_diff_size<0.25:
-            #     self.gain=1.078
-            # elif 0.25<=angle_diff_size<0.3:
-            #     self.gain=1.080
-            # elif 0.3<=angle_diff_size<0.35: #0.30대도 많이 나옴
-            #     self.gain=1.082
-            # elif 0.35<=angle_diff_size<0.4:
-            #     self.gain=1.084
-            # elif 0.4<=angle_diff_size<0.5:
-            #     self.gain=1.086
-            # else:
-            #     self.gain=1.09 #이전 1.068
-
+            
         else:
-
-            # print("I'm straight")
-            if test<0.08:
-                test_test = 1.0 + test * 0.99
-                test_test = np.clip(test_test, 1.0, 1.1)
-                #print(f"똑바른 직선에서 gain값: {test_test}")
-                self.corner_count=0
+            if test < 0.04:
+                test_test = 1.0 + test * 1.4
+                test_test = np.clip(test_test, 1.0, 2.0)
+                print(f"똑바른 직선에서 gain값: {test_test}")
+                self.corner_count = 0
+            
             else:
-                if self.corner_count>4:
+                if self.corner_count > 4:
                     test_test = 1.0 + test * 0.99
-                    test_test=np.clip(test_test, 5.7,58)
-                    #print(f"코너 끝나고 수평 안맞을 때 gain값: {test_test}")
+                    test_test = np.clip(test_test, corner_gain_min, 5.8)
+                    print(f"코너 끝나고 수평 안맞을 때 gain값: {test_test}")
+
                 else:
-                    constant_multiplier = (5 - 1.5) / (2.9 - 0.8)
-                    test_test = 1.0 + test * 2
-                    test_test = (test_test - 1.5) / constant_multiplier
-                    test_test = np.clip(test_test, 0.9, 5.7)
-                    self.target_vel=1.8
-
-
+                    if self.NO_LEFTLINE or self.NO_RIGHTLINE: #둘 중에 하나라도 차선인식이 안되는 경우 
+                        pass
+                        print('차선인식 못함 ')
+                    else:
+                        constant_multiplier = (5 - 1.5) / (2.9 - 0.8)
+                        test_test = 1.0 + test * 2
+                        test_test = (test_test - 1.5) / constant_multiplier
+                        test_test = np.clip(test_test, 5.0, 5.7)
+                        self.target_vel = 2.0
+                        print(f"직선에서 어긋났을때 gain값: {test_test}")
                     
-                    print(f"직선에서 어긋났을때 gain값: {test_test}")
-                    
-
-
             self.gain = test_test
-
-            # if test < 0.35:
-            #     print('abs(angle_difference) < 0.35!, angle_difference :', abs(angle_difference))
-            #     gain = 1.031
-
-            # elif test < 0.5:
-            #     print('abs(angle_difference) < 0.5!, angle_difference :', abs(angle_difference))
-            #     gain = 1.0468
-
-            # else:
-            #     print('abs(angle_difference) > 0.5!, angle_difference :', abs(angle_difference))
-            #     gain = 1.067
-
-        # 살짝 잘 됐던 코드
-        # if self.target_vel==0.8: 1
-        #         gain=1.068대
 
         steering_angle = self.gain * atan2(
             2.0 * self.vehicle_length * sin(angle_difference) / self.lookahead_distance,
@@ -401,25 +330,6 @@ class NavigationClient:
         while angle < -pi:
             angle += 2.0 * pi
         return angle
-
-    def LKAS(self, L_index, R_index, Curve):
-        # 직선인가 커브인가
-        straight = 5
-        if straight < Curve:
-            # 일단 차선이 둘다 있는가 없는가
-            ratio = abs(L_index - R_index)
-            R0 = 10  # 기준 크기
-
-        if L_index == None and R_index != None:
-            L_index = R0
-        elif R_index == None and L_index != None:
-            R_index = R0
-        elif R_index == None and L_index == None:  # 차선이 양쪽 다 없는 경우는 pass
-            L_index = R_index = R0
-        # 좌회전 시 왼쪽 차선의 곡률만 고려 > 최대한 understeer를 내면서 붙는 방향으로 설정
-        # 1. oversteer가 발생하는 경우는 핸들을 좀 풀어준다
-        # 2. understeer가 발생하는 경우는 핸들을 더 준다
-        return
 
     def stop(self):
         self.client.cancel_all_goals()
