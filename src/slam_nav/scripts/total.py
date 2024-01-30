@@ -11,12 +11,11 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 
 from lane_detection.msg import LaneInformation, PixelCoord
-from obstacle_detect.msg import ObstacleInfo, ObstacleInfoArray
+
+# from obstacle_detect.msg import ObstacleInfo, LidarObstacleInfoArray
+from obstacle_detect.msg import LidarObstacleInfo, LidarObstacleInfoArray
 
 from actionlib_msgs.msg import GoalStatus
-
-import matplotlib.pyplot as plt
-
 
 class Total:
     def __init__(self):
@@ -31,12 +30,23 @@ class Total:
 
         self.vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size = 1)
 
-        self.goal_list = []
         self.sequence = 0  # 받아온 좌표모음의 index
-
         self.obstacle_point = 0
 
-        with open("/home/foscar/kmu_virtualdrive2024/src/slam_nav/scripts/waypoint.pkl", "rb") as file:
+        # SLAM 구간용 코드(mission 1)
+        self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+        self.client.wait_for_server()
+
+        self.slam_goal = MoveBaseGoal()
+        self.slam_goal.target_pose.header.frame_id = 'map'
+        self.slam_goal.target_pose.pose.position.x = 18.075382185152254
+        self.slam_goal.target_pose.pose.position.y = -9.681479392662882
+        self.slam_goal.target_pose.pose.orientation.z = 0
+        self.slam_goal.target_pose.pose.orientation.w = 1
+
+        # 장애물 구간 (SLAM 구간 종료 지점 ~ 로터리 앞 정지선)
+        self.mission23_goal = []
+        with open("/home/foscar/kmu_virtualdrive2024/src/slam_nav/scripts/mission23.pkl", "rb") as file:
             pt_list = pickle.load(file)
 
             for _pt in pt_list:
@@ -47,20 +57,24 @@ class Total:
                 pt.target_pose.pose.orientation.z = _pt.orientation.z
                 pt.target_pose.pose.orientation.w = _pt.orientation.w
 
-                self.goal_list.append(pt)
+                self.mission23_goal.append(pt)
 
-        self.goal_list.extend(self.goal_list[::-1])  # 받아온 목표 좌표 모음
+        # 로터리 및 좌회전 미션(로터리 앞 정지선 ~ 골 지점까지)
+        self.mission45_goal = []
+        with open("/home/foscar/kmu_virtualdrive2024/src/slam_nav/scripts/mission45.pkl", "rb") as file:
+            pt_list = pickle.load(file)
 
-        # SLAM 구간용 코드
-        self.client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
-        self.client.wait_for_server()
+            for _pt in pt_list:
+                pt = MoveBaseGoal()
+                pt.target_pose.header.frame_id = "map"
+                pt.target_pose.pose.position.x = _pt.position.x
+                pt.target_pose.pose.position.y = _pt.position.y
+                pt.target_pose.pose.orientation.z = _pt.orientation.z
+                pt.target_pose.pose.orientation.w = _pt.orientation.w
 
-        self.slam_goal = MoveBaseGoal()
-        self.slam_goal.target_pose.header.frame_id = 'map'
-        self.slam_goal.target_pose.pose.position.x = 18.075382185152254
-        self.slam_goal.target_pose.pose.position.y = -9.681479392662882
-        self.slam_goal.target_pose.pose.orientation.z = 0
-        self.slam_goal.target_pose.pose.orientation.w = 1
+                self.mission45_goal.append(pt)
+
+        self.goal_list = [self.mission23_goal, self.mission45_goal]
 
         self.vehicle_length = 0.26
 
@@ -90,6 +104,15 @@ class Total:
         self.control_angle = Twist()
 
         self.stop_flag = False
+        
+        # 장애물은 2단계로 이루어져 있음. 정적/동적 or 동적/정적
+        self.obstacle_stage = 1
+
+        # 그런데, 처음이 정적인지, 동적인지 모르니까 이걸로 처음이 뭐였는지 체크함
+        self.obstacle_type = None
+
+        self.prev_obst_point = None
+        self.yaw_diff_mission2 = 0
 
         # AMCL pose Subscribe
         self.now_pose = None
@@ -105,7 +128,7 @@ class Total:
         rospy.Subscriber("/odometry/filtered", Odometry, self.ld_callback)
 
         self.obstacles = None
-        rospy.Subscriber('/obstacle_information', ObstacleInfoArray, self.mission2)
+        rospy.Subscriber('/lidar_obstacle_information', LidarObstacleInfoArray, self.mission2)
 
     def amcl_callback(self, msg: PoseWithCovarianceStamped):
         self.now_pose = msg.pose.pose.position
@@ -123,24 +146,24 @@ class Total:
         R3_point = self.R_point[3].x
         
         # 1/25 19:46 ==> 4 였음
-        reference_quat = self.goal_list[
-            self.sequence + 8
+        reference_quat = self.goal_list[int(self.MISSION > 1)][
+            min(self.sequence + 10, len(self.goal_list[int(self.MISSION > 1)]) - 1)
         ].target_pose.pose.orientation  # 이전 4
         reference_yaw = self.get_yaw_from_orientation(reference_quat)
         yaw = self.get_yaw_from_orientation(self.now_orientation)
-
+        self.yaw_diff_mission2 = abs(yaw - reference_yaw)
         # @차선 변경 조건 각도 (30도? 40도 추가해야함)
-        # print('yaw', yaw - reference_yaw)
-        if abs(yaw - reference_yaw) > 0.25:  # 각도 차이가 어느정도 난다. 회전해야함
+        # # print('yaw', yaw - reference_yaw)
+        if abs(yaw - reference_yaw) > 0.3:  # 각도 차이가 어느정도 난다. 회전해야함
             self.target_vel = 0.8
             if self.curve_start:
-                print("커브구간 진입  ")
+                # print("커브구간 진입  ")
                 self.curve_start = False
             return
 
             # 속도 줄이기
         else:
-            # print(' straight line ')
+            # # print(' straight line ')
             if (
                 0.3 < self.lookahead_distance < 0.77 and self.curve_endpoint
             ):  # Ld값 짧은상태=코너 주행중이었다면, 2번 속도 증가무시
@@ -186,7 +209,7 @@ class Total:
             """
 
     def ld_callback(self, data: Odometry):
-        # print(self.MISSION)
+        # # print(self.MISSION)
         # R_curv 가 0인 경우 대책을 세워야 함
         v = data.twist.twist.linear.x
 
@@ -205,8 +228,8 @@ class Total:
 
             self.lookahead_distance = 0.79
 
-        elif self.obstacle_point > 0:
-            self.lookahead_distance = 0.3
+        # elif self.obstacle_point > 0:
+            # self.lookahead_distance = 0.3
 
         else: # 직진하는 경우
             v = 2
@@ -215,17 +238,17 @@ class Total:
             Curv = 34
 
             self.lookahead_distance = (k_vel * v) + (k_curv * Curv)
-        # print(f'Ld값은 :{self.lookahead_distance}')
+        # # print(f'Ld값은 :{self.lookahead_distance}')
 
         if self.MISSION == 0:
             self.mission1()
         
         elif self.MISSION == 1:
-            # print('mission1')
+            # # print('mission1')
             self.run()
 
         elif self.MISSION == 2:
-            # print('mission2')
+            # # print('mission2')
             self.run()
 
     def get_yaw_from_orientation(self, quat):
@@ -242,84 +265,121 @@ class Total:
             return
 
         if self.client.get_state() == GoalStatus.SUCCEEDED:
-            # self.MISSION = -1
-            self.MISSION += 1
+            self.MISSION = 1
 
         elif self.client.get_state() != GoalStatus.ACTIVE:
             self.client.send_goal(self.slam_goal)
 
-    def mission2(self, msg: ObstacleInfoArray): # 장애물 구간
-        if self.obstacle_point != 0: return
+    def mission2(self, msg: LidarObstacleInfoArray): # 장애물 구간
+        # if self.target_vel == 0.8: 
+        #     # 상식적으로 코너 언저리에서 장애물이 나오진 않는다
+        #     # 근데, 코너 언저리에서 자꾸 장애물 인식해버림
+        #     # 그래서 이거 넣음        
+        #     return
+        
         if self.MISSION != 1: return
         if not self.now_pose: return
         
-        obstacle_infos = msg.obstacles
-        if len(obstacle_infos):
-            # self.stop()
-            # obstacle_infos[0].distance < 2.4 # 이게 적절하게 멈추는 듯
-            if obstacle_infos[0].distance < 2.4:
-                # self.stop_flag = True
-                # lidar 좌표계 => 차량 좌표계
-                obst_x = obstacle_infos[0].y + self.now_pose.x + 0.11
-                obst_y = -obstacle_infos[0].x + self.now_pose.y
+        obstacle_infos = msg.obstacle_infos
+        if not len(obstacle_infos): return
 
-                target_x = obst_x
-                target_y = obst_y + 0.3
-                print('now_pose', self.now_pose)
-                print('target', target_x, target_y)
+        # mission 2 인 경우 
+        if self.obstacle_stage == 1:
+            if self.yaw_diff_mission2 > 0.3:
+                self.stop()
+                self.obstacle_stage = 2
+                return
 
-                mid_point = (target_y + self.now_pose.y) / 2.
+            for info in obstacle_infos:
+                dist = max(0., np.hypot(info.obst_x, info.obst_y) - 0.21)
+                print('dist', dist)
 
-                self.obstacle_point  = int(obstacle_infos[0].distance / 0.2)
+                # 장애물 종류가 결정된 경우
+                if self.obstacle_type:
+                    if self.start_time:
+                        # 0.5초는 무시하고 전진
+                        if rospy.Time.now().nsecs - self.start_time.nsecs > 500000000:
+                            return
 
-                # 그래프 상에서 우리는 오른쪽 아래에서 차량이 굴러가기 때문
-                new_y = np.linspace(-0.9640275800758169, 0.9640275800758169, self.obstacle_point)[::-1]
-                new_x = -np.arctanh(new_y) * (obstacle_infos[0].distance / 4)
+                        else:
+                            self.start_time = None
 
-                way_y = new_y + new_y[0] + self.now_pose.y # way point 용 y 좌표
-                way_x = new_x - new_x[0] + self.now_pose.x 
+                    if self.obstacle_type == 'd':
+                        if info.obst_x > 0:
+                            self.start_time = rospy.Time.now()
+                            self.stop()
+                            self.stop_flag = False
+                        
+                        elif dist < 2.1:
+                            self.stop_flag = True
+                            self.stop()
 
-                # plt.scatter(way_y, way_x)
-                # plt.show()
+                    else: # 정적 장애물인 경우
+                        # 이 경우 장애물 회피 경로가 모두 완료된 경우 뭔가를 처리해야 함
+                        pass
+                
+                else:
+                    # 순수하게 앞에 장애물이 있는 경우 ==> 정적 장애물인 경우
+                    if -0.1 < info.obst_x < 0.1 and info.obst_y < 2.4:
+                        self.obstacle_type = 's'
+                        # 임시
+                        self.stop_flag  = True
+                        self.stop()
+                        # 차선 변경 실시
+                        pass
+                    
+                    # 동적 장애물인 경우
+                    else:
+                        if self.obstacle_type is None:
+                            self.target_vel = 0.4
+                            self.obstacle_type = 'd'
+                            self.stop()
+                            return
+            
+            # for문에 달린 else
+            else:
+                if not obstacle_infos:
+                    self.stop_flag = False
+                    return
 
-                for seq in range(self.sequence, self.sequence + self.obstacle_point):
-                    idx = seq - self.sequence
+            # print('self.obstacle_type', self.obstacle_type)
 
-                    self.goal_list[seq].target_pose.pose.position.x = way_x[idx]
-                    self.goal_list[seq].target_pose.pose.position.y = way_y[idx]
-
-                    _, _, qz, qw = tf.transformations.quaternion_from_euler(0, 0, -(1 / (1 - new_y[idx] ** 2)))
-    
-                    self.goal_list[seq].target_pose.pose.orientation.x = 0.
-                    self.goal_list[seq].target_pose.pose.orientation.y = 0.
-                    self.goal_list[seq].target_pose.pose.orientation.z = qz
-                    self.goal_list[seq].target_pose.pose.orientation.w = qw
-
-                print('make_path')
-                print(self.goal_list[self.sequence:self.sequence+self.obstacle_point])
-
-                print('\n\nafter_path')
-                print(self.goal_list[self.sequence+self.obstacle_point:self.sequence+self.obstacle_point+10])
+        elif self.obstacle_stage == 2:
+            # 위랑 다르게 d 인경우 정적, s인 경우 동적으로 구현하면 됨
+            print('next stage!')
+            self.stop_flag = True
+            self.stop()
+            return
+        
+        # 두 단계 모두 지나면 장애물 체크할 필요가 없기 때문
+        else: return
 
         if self.stop_flag: 
-            # print(self.goal_list[self.sequence:self.sequence+self.obstacle_point])
+            # # print(self.goal_list[self.sequence:self.sequence+self.obstacle_point])
             self.stop()
 
     def run(self):
         if self.stop_flag: return
+        # print('call again?')
+
         if not self.now_pose: return
-        if (
-            self.dist(self.goal_list[self.sequence].target_pose.pose.position)
-            < self.lookahead_distance
-        ):
-            if self.sequence >= len(self.goal_list): return
+
+        if self.dist(self.goal_list[int(self.MISSION > 1)][self.sequence].target_pose.pose.position) < self.lookahead_distance:
+            if self.sequence == len(self.goal_list[int(self.MISSION > 1)]) - 1:
+                # rotary 코드 삽입
+                self.sequence = 0
+                self.MISSION += 1
+                return
+
+            # if self.sequence >= len(self.goal_list[int(self.MISSION > 1)]):
+            #     # print('hihihi')
+            #     assert True
+            #     return
+            
             self.sequence += 1
 
-            if self.obstacle_point > 0:
-                self.obstacle_point -= 1
-
-        dy = self.goal_list[self.sequence].target_pose.pose.position.y - self.now_pose.y
-        dx = self.goal_list[self.sequence].target_pose.pose.position.x - self.now_pose.x
+        dy = self.goal_list[int(self.MISSION > 1)][self.sequence].target_pose.pose.position.y - self.now_pose.y
+        dx = self.goal_list[int(self.MISSION > 1)][self.sequence].target_pose.pose.position.x - self.now_pose.x
 
         # Pure Pursuit 알고리즘 적용
         angle_to_target = np.arctan2(dy, dx)
@@ -329,14 +389,15 @@ class Total:
         
         test = abs(angle_difference)
 
-        corner_gain_min = 4.93
+        # 원래 4.93
+        corner_gain_min = 1.8
 
         if self.target_vel == 0.8:
             test_test = 1.0 + test * 0.99
 
             test_test = np.clip(test_test, corner_gain_min, 10)
 
-            print(f"곡선에서 gain값: {test_test}")
+            # print(f"곡선에서 gain값: {test_test}")
             self.corner_count += 1
             self.gain = test_test
             
@@ -344,18 +405,18 @@ class Total:
             if test < 0.04:
                 test_test = 1.0 + test * 1.4
                 test_test = np.clip(test_test, 1.0, 2.0)
-                print(f"똑바른 직선에서 gain값: {test_test}")
+                # print(f"똑바른 직선에서 gain값: {test_test}")
                 self.corner_count = 0
             
             else:
                 if self.corner_count > 4:
                     test_test = 1.0 + test * 0.99
                     test_test = np.clip(test_test, corner_gain_min, 5.8)
-                    print(f"코너 끝나고 수평 안맞을 때 gain값: {test_test}")
+                    # print(f"코너 끝나고 수평 안맞을 때 gain값: {test_test}")
 
                 else:
                     if self.NO_LEFTLINE or self.NO_RIGHTLINE: #둘 중에 하나라도 차선인식이 안되는 경우 
-                        print('차선인식 못함 ')
+                        # print('차선인식 못함 ')
                         pass
 
                     else:
@@ -365,7 +426,7 @@ class Total:
                         test_test = np.clip(test_test, 5.0, 5.7)
                         self.target_vel = 2.0
 
-                        print(f"직선에서 어긋났을때 gain값: {test_test}")
+                        #print(f"직선에서 어긋났을때 = tgt vel 2.0일때 gain값: {test_test}")
                     
             self.gain = test_test
 
@@ -375,9 +436,6 @@ class Total:
         if self.target_vel == 0.8:
             output = 0.8
 
-        elif self.obstacle_point > 0:
-            output=0.6
-
         elif self.target_vel == 1.5:
             output = 1.5
 
@@ -386,7 +444,9 @@ class Total:
 
         self.control_angle.linear.x = abs(output)
         self.control_angle.angular.z = steering_angle + self.angle_offset
-        self.vel_pub.publish(self.control_angle)
+
+        if not self.stop_flag:
+            self.vel_pub.publish(self.control_angle)
 
     def normalize_angle(self, angle):
         # 조향각도를 -pi ~ +pi 범위로 정규화 (wrapping이라고 지칭)
@@ -395,7 +455,7 @@ class Total:
         return angle
 
     def stop(self):
-        print('stop?')
+        # # print('stop?')
         self.client.cancel_all_goals()
 
         twist = Twist()
