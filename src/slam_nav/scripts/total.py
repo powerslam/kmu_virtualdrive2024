@@ -57,8 +57,8 @@ class Total:
 
         self.slam_goal = MoveBaseGoal()
         self.slam_goal.target_pose.header.frame_id = 'map'
-        self.slam_goal.target_pose.pose.position.x = 18.141439308224776
-        self.slam_goal.target_pose.pose.position.y = -9.983781823848819
+        self.slam_goal.target_pose.pose.position.x = 18.075382185152254
+        self.slam_goal.target_pose.pose.position.y = -9.681479392662882
         self.slam_goal.target_pose.pose.orientation.z = 0
         self.slam_goal.target_pose.pose.orientation.w = 1
 
@@ -242,6 +242,7 @@ class Total:
             return
 
         if self.client.get_state() == GoalStatus.SUCCEEDED:
+            # self.MISSION = -1
             self.MISSION += 1
 
         elif self.client.get_state() != GoalStatus.ACTIVE:
@@ -254,7 +255,7 @@ class Total:
         
         obstacle_infos = msg.obstacles
         if len(obstacle_infos):
-            self.stop()
+            # self.stop()
             # obstacle_infos[0].distance < 2.4 # 이게 적절하게 멈추는 듯
             if obstacle_infos[0].distance < 2.4:
                 # self.stop_flag = True
@@ -335,7 +336,7 @@ class Total:
 
             test_test = np.clip(test_test, corner_gain_min, 10)
 
-            # print(f"곡선에서 gain값: {test_test}")
+            print(f"곡선에서 gain값: {test_test}")
             self.corner_count += 1
             self.gain = test_test
             
@@ -343,18 +344,18 @@ class Total:
             if test < 0.04:
                 test_test = 1.0 + test * 1.4
                 test_test = np.clip(test_test, 1.0, 2.0)
-                # print(f"똑바른 직선에서 gain값: {test_test}")
+                print(f"똑바른 직선에서 gain값: {test_test}")
                 self.corner_count = 0
             
             else:
                 if self.corner_count > 4:
                     test_test = 1.0 + test * 0.99
                     test_test = np.clip(test_test, corner_gain_min, 5.8)
-                    # print(f"코너 끝나고 수평 안맞을 때 gain값: {test_test}")
+                    print(f"코너 끝나고 수평 안맞을 때 gain값: {test_test}")
 
                 else:
                     if self.NO_LEFTLINE or self.NO_RIGHTLINE: #둘 중에 하나라도 차선인식이 안되는 경우 
-                        # print('차선인식 못함 ')
+                        print('차선인식 못함 ')
                         pass
 
                     else:
@@ -364,7 +365,7 @@ class Total:
                         test_test = np.clip(test_test, 5.0, 5.7)
                         self.target_vel = 2.0
 
-                        # print(f"직선에서 어긋났을때 gain값: {test_test}")
+                        print(f"직선에서 어긋났을때 gain값: {test_test}")
                     
             self.gain = test_test
 
@@ -373,7 +374,8 @@ class Total:
 
         if self.target_vel == 0.8:
             output = 0.8
-        elif self.obstacle_point>0:
+
+        elif self.obstacle_point > 0:
             output=0.6
 
         elif self.target_vel == 1.5:
