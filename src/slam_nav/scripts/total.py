@@ -13,7 +13,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from lane_detection.msg import LaneInformation, PixelCoord
 
 # from obstacle_detect.msg import ObstacleInfo, LidarObstacleInfoArray
-from obstacle_detect.msg import LidarObstacleInfo, LidarObstacleInfoArray
+from obstacle_detect.msg import LidarObstacleInfo, LidarObstacleInfoArray, Rotary
 
 from actionlib_msgs.msg import GoalStatus
 
@@ -95,7 +95,7 @@ class Total:
         self.start_time = rospy.Time.now()
 
         # 20이 기본 세팅 값
-        self.CURVE_ENDPOINT = 20
+        self.CURVE_ENDPOINT = 5   #@손희문 : 이전 20 에서 5으로 수정 > 10으로 늘릴까유>?
         self.curve_endpoint = self.CURVE_ENDPOINT # 코너 끝까지 빠져나올 때까지 속도 유지하기 위함
         
         # self.curve_endpoint = True
@@ -119,6 +119,11 @@ class Total:
         self.now_orientation = None
         self.dist = lambda pt: ((self.now_pose.x - pt.x) ** 2 + (self.now_pose.y - pt.y) ** 2) ** 0.5
         rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.amcl_callback)
+
+        # 로터리 변수, 플래그
+        self.move_car_ori = Rotary.orientation
+        self.move_car_dis = Rotary.dis
+        self.car_flag = False
 
         # 차선 정보 가져오기
         self.L_curv, self.R_curv, self.L_point, self.R_point = 0, 0, [], []
@@ -156,26 +161,61 @@ class Total:
         # # print('yaw', yaw - reference_yaw)
         if abs(yaw - reference_yaw) > 0.3:  # 각도 차이가 어느정도 난다. 회전해야함
             self.target_vel = 0.8
+            mid_point = (L3_point + R3_point) / 2
+
+            mid_r_point = 498
+            mid_l_point = 146
+
+            C_straight = 1.8
+
             if self.curve_start:
-                # print("커브구간 진입  ")
+                print("커브구간 진입  ")
                 self.curve_start = False
-            return
+            
+            if yaw-reference_yaw < 0: #좌회전임
+                print("좌회전 중 ")
+                if L3_point == 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
+                    self.NO_LEFTLINE=True
+                    self.NO_RIGHTLINE=False
+                elif R3_point == 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
+                    self.angle_offset = C_straight * (L3_point - mid_l_point) / 10000
+                    self.NO_RIGHTLINE=True 
+                    self.NO_LEFTLINE=False  
+                else:
+                    self.angle_offset = C_straight * (322 - mid_point) / 10000
+                    self.NO_RIGHTLINE=self.NO_LEFTLINE=False 
+
+            else:  #우회전임 
+                print("우회전 중 ")
+                if L3_point == 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
+                    self.angle_offset = C_straight * (mid_r_point - R3_point) / 10000
+                    self.NO_LEFTLINE=True
+                    self.NO_RIGHTLINE=False
+                elif R3_point == 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
+                    self.NO_RIGHTLINE=True 
+                    self.NO_LEFTLINE=False  
+                else:
+                    self.angle_offset = C_straight * (322 - mid_point) / 10000
+                    self.NO_RIGHTLINE=self.NO_LEFTLINE=False 
+
 
             # 속도 줄이기
         else:
-            # # print(' straight line ')
             if (
-                0.3 < self.lookahead_distance < 0.77 and self.curve_endpoint
+                self.lookahead_distance==0.79 and self.curve_endpoint!=0 and not self.curve_start 
             ):  # Ld값 짧은상태=코너 주행중이었다면, 2번 속도 증가무시
+                print("좌회전이나 우회전의 꼬리부분 ")
                 self.target_vel = 0.8
-                # self.curve_endpoint = False
+                # self.curve_endpoint = False회
                 self.curve_endpoint -= 1
             else:
+                print("고속 직진 중 ")
                 self.control_angle.linear.x = 2.2
                 self.target_vel = 0
                 # self.curve_endpoint = True
                 self.curve_endpoint = self.CURVE_ENDPOINT
                 # 8km/h 일 때 twist 2.0
+                self.curve_start=True
 
             mid_point = (L3_point + R3_point) / 2
 
@@ -216,29 +256,19 @@ class Total:
         # 오른쪽 차선의 기울기
         Curv = abs(self.R_curv)
 
+        # 만약 로터리 진입했다면 장애물 자랑 속도 맞추기(로터리 끝나느 waypoint까지)
+        if self.car_flag==True:
+            v=0.3
+
         # 회전하는 경우
         if v < 0.4:  # 맨 처음 출발할때
-            self.lookahead_distance = 0.8
+            self.lookahead_distance = 0.8840000000000001
 
         elif v < 0.9:
-            v = 0.8
-            k_vel = 0.382
-            k_curv = -0.056
-            Curv = 1  # Ld 0.3
-
             self.lookahead_distance = 0.79
 
-        # elif self.obstacle_point > 0:
-            # self.lookahead_distance = 0.3
-
         else: # 직진하는 경우
-            v = 2
-            k_vel = 0.085
-            k_curv = 0.021
-            Curv = 34
-
-            self.lookahead_distance = (k_vel * v) + (k_curv * Curv)
-        # # print(f'Ld값은 :{self.lookahead_distance}')
+            self.lookahead_distance = 0.8840000000000001
 
         if self.MISSION == 0:
             self.mission1()
@@ -250,6 +280,12 @@ class Total:
         elif self.MISSION == 2:
             # # print('mission2')
             self.run()
+# rt CvBridge  물어보기
+
+    from sensor_msgs.msg import CompressedImage
+
+    from obstacle_detect.msg import LidarObstacleInfoArray
+    from obstacle_detect.msg import ObstacleInfo, ObstacleInfoArray, Rotary
 
     def get_yaw_from_orientation(self, quat):
         euler = tf.transformations.euler_from_quaternion(
@@ -286,7 +322,7 @@ class Total:
         # mission 2 인 경우 
         if self.obstacle_stage == 1:
             if self.yaw_diff_mission2 > 0.3:
-                self.stop()
+                #self.stop()
                 self.obstacle_stage = 2
                 return
 
@@ -320,7 +356,8 @@ class Total:
                 
                 else:
                     # 순수하게 앞에 장애물이 있는 경우 ==> 정적 장애물인 경우
-                    if -0.1 < info.obst_x < 0.1 and info.obst_y < 2.4:
+                    if -0.1 < info.obst_x < 0.1 and info.obst_y < 2.0: #@손희문 2.4로 하면 벽면을 봐버리는 문제 
+                        print("정적장애물 인식")
                         self.obstacle_type = 's'
                         # 임시
                         self.stop_flag  = True
@@ -333,7 +370,7 @@ class Total:
                         if self.obstacle_type is None:
                             self.target_vel = 0.4
                             self.obstacle_type = 'd'
-                            self.stop()
+                            #self.stop()
                             return
             
             # for문에 달린 else
@@ -365,12 +402,16 @@ class Total:
         if not self.now_pose: return
 
         if self.dist(self.goal_list[int(self.MISSION > 1)][self.sequence].target_pose.pose.position) < self.lookahead_distance:
-            if self.sequence == len(self.goal_list[int(self.MISSION > 1)]) - 1:
+            if self.move_car==ord('l') and self.car_flag==False:
+                self.car_flag=True
+
+            if self.sequence == len(self.goal_list[int(self.MISSION > 1)]) - 1 and self.move_car==ord('r') and self.car_flag==True:
                 # rotary 코드 삽입
                 self.sequence = 0
                 self.MISSION += 1
+                # 속도를 장애물 차랑 같아야함(로터리 끝나는 waypoint까지) 
                 return
-
+            
             # if self.sequence >= len(self.goal_list[int(self.MISSION > 1)]):
             #     # print('hihihi')
             #     assert True
@@ -389,8 +430,8 @@ class Total:
         
         test = abs(angle_difference)
 
-        # 원래 4.93
-        corner_gain_min = 1.8
+        # 원래 4.93 , 1.8 중 뭐지?
+        corner_gain_min = 1.9
 
         if self.target_vel == 0.8:
             test_test = 1.0 + test * 0.99
@@ -405,7 +446,7 @@ class Total:
             if test < 0.04:
                 test_test = 1.0 + test * 1.4
                 test_test = np.clip(test_test, 1.0, 2.0)
-                # print(f"똑바른 직선에서 gain값: {test_test}")
+                # print(f"똑바른ㄹㄹ 직선에서 gain값: {test_test}")
                 self.corner_count = 0
             
             else:
@@ -416,7 +457,7 @@ class Total:
 
                 else:
                     if self.NO_LEFTLINE or self.NO_RIGHTLINE: #둘 중에 하나라도 차선인식이 안되는 경우 
-                        # print('차선인식 못함 ')
+                        #print('차선인식 못함 ')
                         pass
 
                     else:
@@ -433,12 +474,12 @@ class Total:
         steering_angle = self.gain * np.arctan2(2.0 * self.vehicle_length * np.sin(angle_difference) / self.lookahead_distance, 1.0)
         self.control_angle = Twist()
 
+        if self.target_vel <= 0.8:
+            output = self.target_vel
         if self.target_vel == 0.8:
             output = 0.8
-
-        elif self.target_vel == 1.5:
-            output = 1.5
-
+        elif self.target_vel == 2.0: 
+            output = 2.0
         else:
             output = 2.2
 
