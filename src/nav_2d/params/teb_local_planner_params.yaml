@@ -1,6 +1,6 @@
 TebLocalPlannerROS:
 
- odom_topic: /odometry/filitered
+ odom_topic: /odometry/filtered
  map_frame: odom
     
  # Trajectory
@@ -9,18 +9,18 @@ TebLocalPlannerROS:
  dt_ref: 0.3
  dt_hysteresis: 0.1
  global_plan_overwrite_orientation: True
- max_global_plan_lookahead_dist: 3.0
+ max_global_plan_lookahead_dist: 4.0 # 1/27 Ld 값 수정 기존: 3.0
  feasibility_check_no_poses: 5
     
  # Robot
  # 자동차 속도 관련 parameter
  # 최대 속도
- max_vel_x: 8.0
- max_vel_x_backwards: 4.0
+ max_vel_x: 1.0 #6
+ max_vel_x_backwards: 1.0
  max_vel_theta: 4.0
  # 최대 가속도
- acc_lim_x: 5.0
- acc_lim_theta: 5.0
+ acc_lim_x: 1.0 #5
+ acc_lim_theta: 4.0 #5
  # max steer angle = 19 deg; r = wheelbase/tan(max_steer_angle)
  min_turning_radius: 0.755
  footprint_model: # types: "point", "circular", "two_circles", "line", "polygon"
@@ -30,7 +30,7 @@ TebLocalPlannerROS:
  # GoalTolerance
     
  xy_goal_tolerance: 0.2 #기존 0.2
- yaw_goal_tolerance: 0.1 # 기존 0.1 # yaw goal tolerance 조절하기> 늘려봐라@@
+ yaw_goal_tolerance: 0.2 # 기존 0.1 # yaw goal tolerance 조절하기> 늘려봐라@@
  free_goal_vel: False
     
  # Obstacles

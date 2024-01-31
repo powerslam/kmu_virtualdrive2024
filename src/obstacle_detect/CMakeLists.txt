@@ -12,16 +12,23 @@ add_message_files(
   FILES
 
   Rotary.msg
-  Obstacle.msg
-  ObstacleArray.msg
+  LidarObstacleInfo.msg
+  LidarObstacleInfoArray.msg
 
-  DynamicObstacle.msg
-  DynamicObstacleArray.msg
+  ObstacleInfo.msg
+  ObstacleInfoArray.msg
 )
 
 generate_messages(
   DEPENDENCIES
   std_msgs
+)
+
+catkin_package(
+#  INCLUDE_DIRS include
+  LIBRARIES lane_detection
+  CATKIN_DEPENDS rospy std_msgs message_runtime
+#  DEPENDS system_lib
 )
 
 include_directories(

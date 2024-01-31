@@ -9,6 +9,7 @@ project(lane_detection)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   rospy
+  roscpp
   std_msgs
   message_generation
 )
@@ -31,12 +32,6 @@ catkin_package(
 #  DEPENDS system_lib
 )
 
-###########
-## Build ##
-###########
-
-## Specify additional locations of header files
-## Your package locations should be listed before other locations
 include_directories(
 # include
   ${catkin_INCLUDE_DIRS}
@@ -44,6 +39,6 @@ include_directories(
 
 catkin_install_python(
   PROGRAMS
-  scripts/main.py
+  scripts/lane_detect.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )

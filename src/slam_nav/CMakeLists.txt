@@ -3,11 +3,10 @@ project(slam_nav)
 
 set(CMAKE_CXX_STANDARD 14)
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
   rospy
+  roscpp
   sensor_msgs
 )
-
 
 catkin_package(
 #  INCLUDE_DIRS include
@@ -24,10 +23,10 @@ add_executable(lidar_convert src/convert_lidar.cpp)
 target_link_libraries(lidar_convert ${catkin_LIBRARIES})
 
 catkin_install_python(PROGRAMS
+   scripts/total.py
    scripts/pub_odom.py
    scripts/save_waypoint.py
    scripts/navigation_client.py
    scripts/pure_pursuit_test.py
-   scripts/navigation_client_copy.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

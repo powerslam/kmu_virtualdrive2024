@@ -36,6 +36,7 @@
       <param name="lasamplerange" value="0.005"/>
       <param name="lasamplestep" value="0.005"/>
     </node>
-
+    
+    <include file="$(find slam_nav)/launch/teleop.launch"/>
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find slam_nav)/rviz/slam.rviz"/>
 </launch>

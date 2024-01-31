@@ -1,1 +1,0 @@
-Obstacle[] obstacle_infos

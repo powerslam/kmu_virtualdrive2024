@@ -1,0 +1,1 @@
+LidarObstacleInfo[] obstacle_infos

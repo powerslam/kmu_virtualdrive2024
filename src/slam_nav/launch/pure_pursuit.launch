@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="lane_detection" type="lane_detect.py" name="lane_detect" output="screen"/>
+    <node pkg="slam_nav" type="navigation_client.py" name="navigation_client" output="screen"/>
+
+    <!-- localization -->
+    <include file="$(find slam_nav)/launch/navigation.launch"/>
+</launch>

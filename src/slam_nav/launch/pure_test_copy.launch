@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="slam_nav" type="pid.py" name="navigation_client"/>
+
+    <!-- localization -->
+    <include file="$(find slam_nav)/launch/navigation.launch"/>
+</launch>

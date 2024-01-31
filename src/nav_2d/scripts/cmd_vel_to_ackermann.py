@@ -26,8 +26,10 @@ class Cmd2Ack:
 
         self.msg.header.stamp = rospy.Time.now()
         self.msg.drive.steering_angle = steering
-        # self.msg.drive.steering_angle_velocity = 0.8
+        self.msg.drive.steering_angle_velocity
         self.msg.drive.speed = v
+        if v <= 0.4 :
+            self.msg.drive.acceleration = 10000000
 
         self.ack_pub.publish(self.msg)
 

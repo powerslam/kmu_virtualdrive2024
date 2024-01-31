@@ -8,8 +8,8 @@ from cv_bridge import CvBridge
 
 from sensor_msgs.msg import CompressedImage
 
-from obstacle_detect.msg import ObstacleArray
-from obstacle_detect.msg import DynamicObstacle, DynamicObstacleArray
+from obstacle_detect.msg import LidarObstacleInfoArray
+from obstacle_detect.msg import ObstacleInfo, ObstacleInfoArray
 
 def rotation_from_euler(roll=1., pitch=1., yaw=1.):
     si, sj, sk = np.sin(roll), np.sin(pitch), np.sin(yaw)
@@ -34,13 +34,14 @@ def translation_matrix(vector):
     M[:3, 3] = vector[:3]
     return M
 
-class CamObstacleDetect():
+class CamObstacleDetect:
     def __init__(self):
-        rospy.init_node('descriptor_test') 
-        rospy.Subscriber('/image_jpeg/compressed', CompressedImage, self.camera_obstacle_callback)
-        rospy.Subscriber('/obstacle_info', ObstacleArray, self.lidar_obstacle_callback)
+        rospy.init_node('camera_obstacle')
 
-        self.dynamic_obstacle_info_array_pub = rospy.Publisher('/dynamic_obstacle_information', DynamicObstacleInfoArray, queue_size=10)
+        rospy.Subscriber('/lidar_obstacle_information', LidarObstacleInfoArray, self.lidar_obstacle_callback)
+        rospy.Subscriber('/image_jpeg/compressed', CompressedImage, self.camera_obstacle_callback)
+
+        self.obstacles_pub = rospy.Publisher('/obstacle_information', ObstacleInfoArray, queue_size=10)
 
         self.img, self.hsv, self.gray = None, None, None
         self.obstacle_info = None
@@ -72,18 +73,28 @@ class CamObstacleDetect():
 
         extrinsic = R @ R_veh2cam @ T_veh2cam
 
-        self.ipm_matrix = intrinsic @ extrinsic 
+        self.ipm_matrix = intrinsic @ extrinsic
+        self.ipm_matrix_reverse = np.linalg.inv(self.ipm_matrix)
 
-    def lidar_obstacle_callback(self, msg: ObstacleArray):
+    def lidar_obstacle_callback(self, msg: LidarObstacleInfoArray):
+        if self.hsv is None: return
+        if self.img is None: return
+        if self.gray is None: return
+
         infos = msg.obstacle_infos
         self.obstacle_info = np.array([[info.obst_y, -info.obst_x, 0., 1.] for info in infos])
 
+    # 1. 라이다 정보 받기
+    # 2. 근데 장애물 좌표가 중앙차선을 벗어난 상태이고 파란끼가 있으면
+    #    일정 거리내로 들어오면 정지
+
     def camera_obstacle_callback(self, msg: CompressedImage):
         self.img = self.get_image(msg)
+        self.h, self.w, _ = self.img.shape
         self.hsv = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
         self.gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
-        
-        data = DynamicObstacleArray(isObstacle=False)
+
+        data = ObstacleInfoArray()
         if self.obstacle_info is not None and len(self.obstacle_info) != 0:
             image_coords = self.ipm_matrix @ self.obstacle_info.T
             image_coords /= image_coords[2]
@@ -96,9 +107,8 @@ class CamObstacleDetect():
             # print('uv', uv)
 
             for idx, info in enumerate(uv):
-                data.isObstacle = True
                 x, y = map(int, info)
-                
+
                 cv2.circle(self.img, (x, y), 2, (0, 0, 255), -1)
 
                 res = self.find_person(x, y)
@@ -106,13 +116,20 @@ class CamObstacleDetect():
                     _x = -self.obstacle_info[idx][1]
                     _y = self.obstacle_info[idx][0]
 
-                    data.dynamic_obstacles.append(DynamicObstacle(x=_x, y=_y, distance=np.sqrt(_x ** 2 + _y ** 2)))
-                    cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (0, 255, 0), 2)
+                    data.obstacles.append(ObstacleInfo(x=_x, y=_y, distance=np.hypot(_x, _y), is_dynamic=True))
+                    # cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (0, 255, 0), 2)
 
                 else:
-                    cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (255, 0, 0), 2)
+                    _x = -self.obstacle_info[idx][1]
+                    _y = self.obstacle_info[idx][0]
 
-        self.dynamic_obstacle_info_array_pub.publish(data)
+                    data.obstacles.append(ObstacleInfo(x=_x, y=_y, distance=np.hypot(_x, _y), is_dynamic=False))
+                    # cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (255, 0, 0), 2)
+
+                # print(y, x)
+                cv2.imshow('crop', self.img[max(0, y - 50):min(y + 40, self.h), max(0, x - 20):min(x +20, self.w)])
+
+        self.obstacles_pub.publish(data)
 
         cv2.imshow('image', self.img)
         cv2.waitKey(1)
@@ -134,9 +151,13 @@ class CamObstacleDetect():
         # cv2.imshow('erode', erode) # DEBUG
         
         person = cv2.morphologyEx(erode, cv2.MORPH_DILATE, self.kernel5) # 최종 출력
-        person[person > 50] = 255
+        person[person > 0] = 255
+        
+        # cv2.imshow('person', person)
 
-        return len(person[y - 30:y + 10, x - 20:x + 20].nonzero()[0]) > 50
+        # print(len(person[y-30:y + 10, x - 20:x + 20].nonzero()[0]))
+
+        return len(person[y - 50:y + 40, x - 20:x +20].nonzero()[0]) > 500
 
 if __name__ == '__main__':
     try:

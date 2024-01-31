@@ -1,3 +1,6 @@
 /build
 /devel
 /.vscode
+waypoint.pkl
+map.pgm
+map.yaml
