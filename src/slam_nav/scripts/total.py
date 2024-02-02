@@ -57,14 +57,15 @@ class Total:
 
         self.slam_goal = MoveBaseGoal()
         self.slam_goal.target_pose.header.frame_id = 'map'
-        self.slam_goal.target_pose.pose.position.x = 18.075382185152254
-        self.slam_goal.target_pose.pose.position.y = -9.681479392662882
+        self.slam_goal.target_pose.pose.position.x = 17.183019771397632
+        self.slam_goal.target_pose.pose.position.y = -9.804011059215055
         self.slam_goal.target_pose.pose.orientation.z = 0
         self.slam_goal.target_pose.pose.orientation.w = 1
 
 
         # 장애물 구간 (SLAM 구간 종료 지점 ~ 로터리 앞 정지선)
         self.mission23_goal = []
+        
         with open("/home/foscar/kmu_virtualdrive2024/src/slam_nav/scripts/mission23.pkl", "rb") as file:
             pt_list = pickle.load(file)
 
@@ -189,7 +190,8 @@ class Total:
 
         # 1/25 19:46 ==> 4 였음
         reference_quat = self.goal_list[int(self.MISSION > 1)][
-            min(self.sequence + 6, len(self.goal_list[int(self.MISSION > 1)]) - 1)
+            # self.sequence 보다 뒤에 있는 점 중에 lookahead_distacne 랑 비슷한 친구를 더하는게 맞는거
+            min(self.sequence + int(self.lookahead_distance / 0.05), len(self.goal_list[int(self.MISSION > 1)]) - 1)
         ].target_pose.pose.orientation  # 이전 4
         reference_yaw = self.get_yaw_from_orientation(reference_quat)
         yaw = self.get_yaw_from_orientation(self.now_orientation)
@@ -386,7 +388,7 @@ class Total:
         if v < 1.:  # 맨 처음 출발할때
             #self.lookahead_distance = 0.8840000000000001
             # print('turning')
-            self.lookahead_distance = 0.6
+            self.lookahead_distance = 0.4
 
         # elif v < 0.9:
         #     #self.lookahead_distance = 0.79
@@ -394,7 +396,7 @@ class Total:
         
         else: # 직진하는 경우
             #self.lookahead_distance = 0.8840000000000001
-            self.lookahead_distance = 1.
+            self.lookahead_distance = 0.85
         
         if self.MISSION == 0:
             # print('mission0 hi?')
@@ -427,7 +429,6 @@ class Total:
             self.client.send_goal(self.slam_goal)
 
     def mission1(self, msg: LidarObstacleInfoArray): # 장애물 구간
-        # rotary 때문에 임시로 멈추게 함
         if self.MISSION != 1: return
 
         if not self.now_pose: return
@@ -435,41 +436,41 @@ class Total:
         if self.obstacle_type and self.obstacle_stage != 2 and self.target_vel == self.TURN_VEL and self.R_curv < 0.1:
             print('turn')
             self.obstacle_stage = 2
+
+            # 다음 장애물은 반드시 반대 타입의 장애물이기 때문
+            self.obstacle_type = 's' if self.obstacle_type == 'd' else 'd'
             return
 
         obstacle_infos = msg.obstacle_infos
         if not len(obstacle_infos): return
 
+        # 미션 5에 대한 회피는 따로 만들어야 함
+        # 동적인 경우 / 정적인 경우 모두 차량의 앞에 위치하게 됨
+        # 따라서 1. 일단 정지를 하고 2. 장애물 x에 변화가 없으면?( ==> 이건 나중에 테스트 해봐야 암) 회피경로 생성
+        # 3. 아니면 기다렸다가 출발
+
         # mission 2 인 경우
         if self.obstacle_stage == 1:
+            # 가장 가까운 장애물로 바꾸긴 해야 함
             for info in obstacle_infos:
                 print('장애물 발견')
                 dist = max(0., np.hypot(info.obst_x, info.obst_y) - 0.21)
-                # # print('dist', dist)
-
+                
                 # 장애물 종류가 결정된 경우
                 if self.obstacle_type:
-                    print("엥?")
+                    print('장애물 결정')
                     if self.obstacle_type == 'd':
+                        # 장애물의 x 좌표가 0보다 큰 경우 ==> 차선을 탈출했다고 판정하고 출발
                         if info.obst_x > 0:
                             self.stop_flag = False
 
-                        elif info.obst_x > -1.38 and info.obst_y > 0.1 and dist < 1.35:
+                        # 재정지 해야하는 경우임
+                        # 장애물의 x 좌표가 -0.8 인 경우 그리고, 장애물의 좌표가 0.1 보다 큰 경우 거리가 아직 1.3 보다 작은 경우는 정지
+                        elif info.obst_x > -0.8 and info.obst_y > 0.1 and dist < 1.3:
                             self.stop_flag = True
                             self.stop()
 
                     else: # 정적 장애물인 경우
-                        # 이 경우 장애물 회피 경로가 모두 완료된 경우 뭔가를 처리해야 함
-                        pass
-                
-                else:
-                    print('장애물 미결정', info)
-
-                    # 근데 이러지 말고 그냥 info.obst_x 가 일정 범위 밖인 경우 동적/정적으로 갈라도 될 듯
-                    # 순수하게 앞에 장애물이 있는 경우 ==> 정적 장애물인 경우
-                    if -0.2 < info.obst_x < 0.2: #@손희문 2.4로 하면 벽면을 봐버리는 문제 
-                        print("정적 장애물 인식")
-                        self.obstacle_type = 's'
                         self.dy_flag = False # False는 현재 자동차가 2차선, True는 현재 자동차가 1차선
 
                         # 임시
@@ -500,7 +501,7 @@ class Total:
                             self.create_trajectory( target_x, target_y, dist)
                             
 
-                            #y축을 빼야 하는 경우도 있는걸 염두
+                        #y축을 빼야 하는 경우도 있는걸 염두
 
 
 
@@ -511,34 +512,33 @@ class Total:
 
 
                         pass
-                    
-                    # 동적 장애물인 경우
-                    else:
-                        if self.obstacle_type is None:
-                            self.obstacle_type = 'd'
-                            return
-                    
+                
+                else:
+                    print('장애물 미결정', info)
+                    # 특정 경우를 제외하면 무조건 동적 장애물
+                    # 원래는 그냥 구분이 안 간다는게 문제였는데, 그냥 이 정도 선에서 만족해도 될 듯?
+                    self.obstacle_type = 's' if -0.2 < info.obst_x < 0.2 else 'd'
+                    return
+                
             # for문에 달린 else
             else:
                 if not obstacle_infos:
                     self.stop_flag = False
-                    return
 
             # # # print('self.obstacle_type', self.obstacle_type)
 
         elif self.obstacle_stage == 2:
-            # 위랑 다르게 d 인경우 정적, s인 경우 동적으로 구현하면 됨
-            # print('next stage!')
-            # self.stop_flag = True
-            # self.stop()
-            return
-        
-        # 두 단계 모두 지나면 장애물 체크할 필요가 없기 때문
-        else: return
+            for info in obstacle_infos:
+                if self.obstacle_type == 'd':
+                    if info.obst_x > 0:
+                            self.stop_flag = False
 
-        if self.stop_flag: 
-            # # # # print(self.goal_list[self.sequence:self.sequence+self.obstacle_point])
-            self.stop()
+                    elif info.obst_x > -0.8 and info.obst_y > 0.1 and dist < 1.3:
+                        self.stop_flag = True
+                        self.stop()
+
+                else:
+                    pass
 
     def mission2(self, msg: RotaryArray):
         self.move_car = msg.moving_cars
@@ -666,18 +666,18 @@ class Total:
             if self.obstacle_point > 0:
                 self.obstacle_point -= 1
             
-            # print('seq', self.sequence)
             if self.sequence == len(self.goal_list[int(self.MISSION > 1)]) - 1:
-                self.stop_flag = True
-                self.stop()
-                # print("finish")
+                if self.MISSION > 1:
+                    self.stop_flag = True
+                    self.stop()
+                    return
                 
+                # 로터리 코드
                 if 0 < self.min_dis.dis < 1.5:
                     self.stop_flag = True 
                     self.stop()
                     
                 else:
-                    # print('enter')
                     self.target_vel = self.TURN_VEL # 이거 다음은 회전이니까
                     self.rotary_exit_flag = True
                     self.sequence = 0
@@ -687,7 +687,6 @@ class Total:
 
             else :
                 self.sequence += 1
-            
 
         # 차량 좌표계는 (차량 x축) = (일반 y축), (차량 y축) = -(일반 x축)
         dy = self.goal_list[int(self.MISSION > 1)][self.sequence].target_pose.pose.position.x - self.now_pose.x
