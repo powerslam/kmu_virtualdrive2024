@@ -115,7 +115,7 @@ class Total:
         self.NO_REF = False 
 
         # 20이 기본 세팅 값
-        self.CURVE_ENDPOINT = 10   #@손희문 : 이전 20 에서 5으로 수정 > 10으로 늘릴까유>?
+        self.CURVE_ENDPOINT = 14    #@손희문 : 이전 20 에서 5으로 수정 > 10으로 늘릴까유>?
         self.curve_endpoint = self.CURVE_ENDPOINT # 코너 끝까지 빠져나올 때까지 속도 유지하기 위함
         
         # self.curve_endpoint = True
@@ -136,9 +136,12 @@ class Total:
 
         self.rotary_exit_flag = False
 
-        self.TURN_VEL = 1200
-        self.INPO_VEL = 1800
+        self.TURN_VEL = 1500
+        self.INPO_VEL = 1200
         self.STRA_VEL = 2400
+
+        self._min_angle = 10000000
+        self._max_angle = -10000000
 
         # AMCL pose Subscribe
         self.now_pose = None
@@ -182,16 +185,16 @@ class Total:
         self.L_point = msg.left_lane_points
         self.R_point = msg.right_lane_points
 
-        L3_point = self.L_point[3].x
-        R3_point = self.R_point[3].x
+        L7_point = self.L_point[7].x
+        R7_point = self.R_point[7].x
 
-        l_pt_obstacle_point = len([1 for pt in self.L_point if pt.x == 0])
-        r_pt_zero_obstacle_point = len([1 for pt in self.R_point if pt.x == 0])
+        l_pt_zero_cnt = len([1 for pt in self.L_point if pt.x == 0])
+        r_pt_zero_cnt = len([1 for pt in self.R_point if pt.x == 0])
 
         # 1/25 19:46 ==> 4 였음
         reference_quat = self.goal_list[int(self.MISSION > 2)][
             # self.sequence 보다 뒤에 있는 점 중에 lookahead_distacne 랑 비슷한 친구를 더하는게 맞는거
-            min(self.sequence + int(self.lookahead_distance / 0.05), len(self.goal_list[int(self.MISSION > 2)]) - 1)
+            min(self.sequence, len(self.goal_list[int(self.MISSION > 2)]) - 1)
         ].target_pose.pose.orientation  # 이전 4
         reference_yaw = self.get_yaw_from_orientation(reference_quat)
         yaw = self.get_yaw_from_orientation(self.now_orientation)
@@ -199,180 +202,115 @@ class Total:
         ref_vec = self.direction_vector(reference_yaw)
         vec = self.direction_vector(yaw)
         self.yaw_diff_mission1 = np.arccos(np.dot(ref_vec,vec)) 
+        #print("차선인식에서 받는 ref quat 과 현재 pose 각도 차이 ", self.yaw_diff_mission1)
         # self.yaw_diff_mission1 = abs(yaw - reference_yaw)
 
 
-        mid_point = (L3_point + R3_point) / 2
 
-        mid_r_point = 498
-        mid_l_point = 146
 
-        C_straight = 1.8
+        MID_R_POINT = 498
+        MID_L_POINT = 190
+        MID_POINT = 342
+        mid_point = (L7_point + R7_point) / 2
 
         if self.obstacle_point > 0:
             self.target_vel = self.TURN_VEL
 
-        elif abs(yaw - reference_yaw) > 0.3:  # 각도 차이가 어느정도 난다. 회전해야함
+        elif self.yaw_diff_mission1 > 0.3:  # 각도 차이가 어느정도 난다. 회전해야함
             self.target_vel = self.TURN_VEL
-            mid_point = (L3_point + R3_point) / 2
-
-            mid_r_point = 498
-            mid_l_point = 146
-
-            C_straight = 1.8
+ 
             # print('r_pt_zero_obstacle_point', r_pt_zero_obstacle_point)
-            if 4 < r_pt_zero_obstacle_point : self.NO_REF = True
+            if 4 < r_pt_zero_cnt : self.NO_REF = True
             
             if self.curve_start:
                 # # print("커브구간 진입  ")
                 self.curve_start = False
             
-            if yaw - reference_yaw < 0: #좌회전임
-                # # print("좌회전 중 ")
-                if L3_point == 0 and R3_point!=0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
-                    self.NO_LEFTLINE=True
-                    self.NO_RIGHTLINE=False
-                    # print("좌회전 중 - 왼쪽 차선 X  ")
-                
-                elif R3_point == 0 and L3_point != 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
-                    self.angle_offset = -C_straight * (L3_point - mid_l_point) / 200
-                    self.NO_RIGHTLINE=True 
-                    self.NO_LEFTLINE=False  
-                    # print("좌회전 중 - 오른쪽 차선 X ")
+            self.angle_offset = 0
+            if np.cross(vec, ref_vec) > 0: #좌회전임
+                # print('좌회전임')
+                if R7_point == 0 and L7_point != 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
+                    #self.angle_offset = (L7_point - MID_L_POINT)  
+                    self.angle_offset = 0 
+                    print("차선에서 벗어난 정도(왼) ", self.angle_offset)
 
-                elif R3_point == 0 and L3_point==0:
-                    self.angle_offset=0
-                    self.NO_RIGHTLINE=True 
-                    self.NO_LEFTLINE=True 
-                    # print("양쪽 다 인식 x ")
-                    self.R_curv = 480
-
-                else:
-                    if not self.NO_REF:
-                        self.angle_offset = C_straight * (322 - mid_point) / 500
-                        self.NO_RIGHTLINE = self.NO_LEFTLINE=False 
-                        # print("좌회전 중 - 양쪽 차선 다 인식")
-                    
-                    else:
-                        self.angle_offset=0
-                
-                if self.R_curv == 480:
-                    self.angle_offset = 0.35
-                    # print("R_curve 480  !!")
+                elif not self.NO_REF:
+                    self.angle_offset = (MID_POINT - mid_point) 
+                    print("차선에서 벗어난 정도(정) ", self.angle_offset)
 
             else:  #우회전임 
-                # print("우회전 중 ", yaw - reference_yaw, 'yaw', yaw, 'ref_yaw', reference_yaw)
-                if L3_point == 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
-                    self.angle_offset = C_straight * (mid_r_point - R3_point) / 500
-                    self.NO_LEFTLINE=True
-                    self.NO_RIGHTLINE=False
+                #print("우회전 중 ")
+                if L7_point == 0 and R7_point != 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
+                    #self.angle_offset = (R7_point - MID_R_POINT)  #양수면 좌회전 조향 , 음수면 우회전 조향 
+                    self.angle_offset = 0 
+                    print("차선에서 벗어난 정도(오) ", self.angle_offset)
 
-                elif R3_point == 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
-                    self.NO_RIGHTLINE=True 
-                    self.NO_LEFTLINE=False  
-                
-                else:
-                    self.angle_offset = C_straight * (322 - mid_point) / 500
-                    self.NO_RIGHTLINE=self.NO_LEFTLINE=False 
+                elif not self.NO_REF:
+                    self.angle_offset = (MID_POINT - mid_point) 
+                    print("차선에서 벗어난 정도(정) ", self.angle_offset)
+
+            self.angle_offset = (self.angle_offset / 120) * np.pi / 25
 
 
             # 속도 줄이기
         else:
             self.NO_REF = False
-            if (
-                self.lookahead_distance==0.79 and self.curve_endpoint!=0 and not self.curve_start 
-            ):  # Ld값 짧은상태=코너 주행중이었다면, 2번 속도 증가무시
-                # print("좌회전이나 우회전의 꼬리부분 ")
+            if  self.curve_endpoint!=0 and not self.curve_start :  # Ld값 짧은상태=코너 주행중이었다면, 2번 속도 증가무시
+                #print("좌회전이나 우회전의 꼬리부분 ")
                 self.target_vel = self.TURN_VEL
                 # self.curve_endpoint = False회
                 self.curve_endpoint -= 1
+                self.angle_offset = 0
+                if np.cross(vec, ref_vec) > 0: #좌회전임
+                    # print('좌회전임')
+                    if R7_point == 0 and L7_point != 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
+                        #self.angle_offset = (L7_point - MID_L_POINT)  
+                        self.angle_offset = 0
+                        print("차선에서 벗어난 정도(왼) ", self.angle_offset)
 
-                if yaw-reference_yaw < 0: #좌회전임
-                    # # print("좌회전 중 ")
-                    if L3_point == 0 and R3_point!=0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
-                        self.NO_LEFTLINE=True
-                        self.NO_RIGHTLINE=False
-                        # print("좌회전 중 - 왼쪽 차선 X  ")
-                    
-                    elif R3_point == 0 and L3_point != 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
-                        self.angle_offset = -C_straight * (L3_point - mid_l_point) / 200
-                        self.NO_RIGHTLINE=True 
-                        self.NO_LEFTLINE=False  
-                        # print("좌회전 중 - 오른쪽 차선 X ")
-
-                    elif R3_point == 0 and L3_point==0:
-                        self.angle_offset=0
-                        self.NO_RIGHTLINE=True 
-                        self.NO_LEFTLINE=True 
-                        # print("양쪽 다 인식 x ")
-                        self.R_curv = 480
-
-                    else:
-                        if not self.NO_REF:
-                            self.angle_offset = C_straight * (322 - mid_point) / 500
-                            self.NO_RIGHTLINE = self.NO_LEFTLINE=False 
-                            # print("좌회전 중 - 양쪽 차선 다 인식")
-                        
-                        else:
-                            self.angle_offset=0
-                    
-                    if self.R_curv == 480:
-                        self.angle_offset = 0.35
-                        # print("R_curve 480  !!")
+                    elif not self.NO_REF:
+                        self.angle_offset = (MID_POINT - mid_point) 
+                        print("차선에서 벗어난 정도(정) ", self.angle_offset)
 
                 else:  #우회전임 
-                    # print("우회전 중 ")
-                    if L3_point == 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
-                        self.angle_offset = C_straight * (mid_r_point - R3_point) / 500
-                        self.NO_LEFTLINE=True
-                        self.NO_RIGHTLINE=False
-                    elif R3_point == 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
-                        self.NO_RIGHTLINE=True 
-                        self.NO_LEFTLINE=False  
-                    else:
-                        self.angle_offset = C_straight * (322 - mid_point) / 500
-                        self.NO_RIGHTLINE=self.NO_LEFTLINE=False 
+                    #print("우회전 중 ")
+                    if L7_point == 0 and R7_point != 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
+                        #self.angle_offset = (R7_point - MID_R_POINT)  #양수면 좌회전 조향 , 음수면 우회전 조향 
+                        self.angle_offset = 0 
+                        print("차선에서 벗어난 정도(오) ", self.angle_offset)
+
+                    elif not self.NO_REF:
+                        self.angle_offset = (MID_POINT - mid_point) 
+                        print("차선에서 벗어난 정도(정) ", self.angle_offset)
+
+                self.angle_offset = (self.angle_offset / 120) * np.pi / 25
 
 
             else:
                 # print("고속 직진 중 ")
-                self.control_angle.linear.x = 2.2
                 self.target_vel = self.STRA_VEL
                 # self.curve_endpoint = True
                 self.curve_endpoint = self.CURVE_ENDPOINT
                 # 8km/h 일 때 twist 2.0
                 self.curve_start=True
 
-                mid_point = (L3_point + R3_point) / 2
+                if l_pt_zero_cnt > 4 and r_pt_zero_cnt > 4:
+                    self.angle_offset = 0
+                    
+                elif L7_point == 0 or R7_point == 0:  # 오른쪽이나 왼쪽 차선 없음
+                    if L7_point == 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
+                        self.angle_offset = (R7_point - MID_R_POINT)  #양수면 좌회전 조향 , 음수면 우회전 조향 
+                        print("차선에서 벗어난 정도(오) ", self.angle_offset)
 
-                mid_r_point = 498
-                mid_l_point = 146
-
-                if L3_point == 0 or R3_point == 0:  # 오른쪽이나 왼쪽 차선 없음
-                    if L3_point == 0: #왼쪽 차선만 없는 경우 오른쪽 보고 간다 .
-                        self.angle_offset = C_straight * (mid_r_point - R3_point) / 1000
-                        self.NO_LEFTLINE=True
-                        self.NO_RIGHTLINE=False
-                    elif R3_point == 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
-                        self.angle_offset = -C_straight * (L3_point - mid_l_point) / 1000
-                        self.NO_RIGHTLINE=True
-                        self.NO_LEFTLINE=False  
-
-                    else:  # 둘다 0인 경우 > 아무래도 패쓰
-                        self.angle_offset = 0
-                        self.NO_LEFTLINE=self.NO_RIGHTLINE=True
+                    elif R7_point == 0: # @1/27 오른쪽 차선만 없는 경우 왼쪽만 보고 간다 > d
+                        self.angle_offset = (L7_point - MID_L_POINT)  
+                        print("차선에서 벗어난 정도(왼) ", self.angle_offset)
 
                 else:
-                    self.angle_offset = C_straight * (322 - mid_point) / 10000
-                    #self.angle_offset=0
-                    self.NO_RIGHTLINE=self.NO_LEFTLINE=False
+                    self.angle_offset = (MID_POINT - mid_point) 
+                    print("차선에서 벗어난 정도(정) ", self.angle_offset)
 
-            """
-            self.angle_offset
-            회전을 해야될 때 일단 차선 보지 말자 
-            직진주행일때, 양쪽의 선을 보자 
-            """
-        self.angle_offset = 0
+                self.angle_offset = (self.angle_offset / 120) * np.pi / 70
 
     def ld_callback(self, data: Odometry):
         # # # # print(self.MISSION)
@@ -388,19 +326,18 @@ class Total:
             v = 0.3
 
         # 회전하는 경우
-        if v < 1.:  # 맨 처음 출발할때
+        if v < 1. :
+            self.lookahead_distanc = 0.4
+        
+        if v < 1.5:  # 맨 처음 출발할때
             #self.lookahead_distance = 0.8840000000000001
             # print('turning')
-            self.lookahead_distance = 0.8
-
-        # elif v < 0.9:
-        #     #self.lookahead_distance = 0.79
-        #     self.lookahead_distance = 0.8
+            self.lookahead_distance = 1.2 
         
         else: # 직진하는 경우
             #self.lookahead_distance = 0.8840000000000001
-            self.lookahead_distance = 0.85
-        
+            self.lookahead_distance = 1.5
+
         if self.MISSION == 0:
             # print('mission0 hi?')
             self.mission0()
@@ -439,7 +376,7 @@ class Total:
         ], dtype=np.float32)
 
     def mission1(self, msg: LidarObstacleInfoArray): # 장애물 구간
-        if self.MISSION != 1 and self.MISSION != 2: return
+        if True or (self.MISSION != 1 and self.MISSION != 2): return
 
         if not self.now_pose: return
 
@@ -473,7 +410,11 @@ class Total:
                 info.obst_x = rotated_pt[0]
                 info.obst_y = rotated_pt[1]
 
-                print('장애물 발견')
+                print('mission2, 장애물 발견')
+                self.stop()
+                self.stop_flag = True
+                return
+
                 dist = max(0., np.hypot(info.obst_x, info.obst_y) - 0.21)
                 
                 # 장애물 종류가 결정된 경우
@@ -558,7 +499,7 @@ class Total:
                 # info.obst_x = rotated_pt[0]
                 # info.obst_y = rotated_pt[1]
 
-                print('장애물 발견')
+                print('mission3, 장애물 발견')
                 dist = max(0., np.hypot(info.obst_x, info.obst_y) - 0.21)
 
                 print('현재 장애물 단계', self.obstacle_type)
@@ -765,16 +706,26 @@ class Total:
                     return
 
             else :
-                self.sequence += 1
-
+                for seq in range(self.sequence, len(self.goal_list[int(self.MISSION > 2)])):
+                    if self.dist(self.goal_list[int(self.MISSION > 2)][seq].target_pose.pose.position) < self.lookahead_distance:
+                        self.sequence += 1
+        
         # 차량 좌표계는 (차량 x축) = (일반 y축), (차량 y축) = -(일반 x축)
-        dy = self.goal_list[int(self.MISSION > 2)][self.sequence].target_pose.pose.position.x - self.now_pose.x
-        dx = self.now_pose.y - self.goal_list[int(self.MISSION > 2)][self.sequence].target_pose.pose.position.y 
+        dx = self.goal_list[int(self.MISSION > 2)][self.sequence].target_pose.pose.position.x - self.now_pose.x
+        dy = self.goal_list[int(self.MISSION > 2)][self.sequence].target_pose.pose.position.y - self.now_pose.y 
 
         # print('dy', dy, 'dx', dx)
 
         # Pure Pursuit 알고리즘 적용
         # 목표지점과 현재 지점 간 각도
+        vec_to_target = np.array([dx, dy])
+        vec_to_target /= np.linalg.norm(vec_to_target)
+
+        yaw = self.get_yaw_from_orientation(self.now_orientation) #orientation is quat
+        
+        # 방향 벡터
+        pose_vec = self.direction_vector(yaw)
+
         angle_to_target = np.arctan2(dx, dy)
         # print('angel_to_target', angle_to_target)
         
@@ -782,19 +733,22 @@ class Total:
         yaw = -self.get_yaw_from_orientation(self.now_orientation)
         # print('yaw', yaw)
         
-        # 목표 지점과 나의 pose의 차이를 계산
-        angle_difference = angle_to_target - yaw
-        
+        # 목표 지점과 나의 pose의 차이를 계산 > 내적으로 크기 계산 
+        direction = np.cross(pose_vec,vec_to_target)
+        if direction>0:
+            angle_difference = -np.arccos(pose_vec @ vec_to_target)
+        else: 
+            angle_difference = np.arccos(pose_vec @ vec_to_target)
         # 이거는 각도 정규화
-        # angle_difference = self.normalize_angle(angle_difference)
-        # print('angle_diff', angle_difference)
+        
+        #print(f"실제 계산되는 각도 차이 : {angle_difference}")
 
-        # 
+
         test = abs(angle_difference)
 
         # 원래 4.93 , 1.8 중 뭐지?
         corner_gain_min = 1.53     
-
+        self.gain=1
         if self.target_vel == self.TURN_VEL:
             test_test = 1.0 + test * 1.15  #0.99
 
@@ -803,79 +757,76 @@ class Total:
                 test_test=2.6
             ## print(f"곡선에서 gain값: {test_test}")
             self.corner_count += 1
-            self.gain = test_test
+            #self.gain = test_test
             
         else:
-            if test < 0.04:
+            if test < 0.06 :
                 test_test = 1.0 + test * 1.4
                 test_test = np.clip(test_test, 1.0, 2.0)
                 ## print(f"똑바른 직선에서 gain값: {test_test}")
                 self.corner_count = 0
+                self.target_vel = self.STRA_VEL
             
             else:
                 if self.corner_count > 4:
                     test_test = 1.0 + test * 1.15
                     test_test = np.clip(test_test, corner_gain_min, 2.4)
+                    self.gain=1.2
                     ## print(f"코너 끝나고 수평 안맞을 때 gain값: {test_test}")
 
                 else:
-                    if self.NO_LEFTLINE or self.NO_RIGHTLINE: #둘 중에 하나라도 차선인식이 안되는 경우 
-                        ## print('차선인식 못함 ')
-                        test_test=1
-                        pass
+                    test_test=1.4
+                    if not self.rotary_exit_flag:
+                        self.target_vel = self.INPO_VEL
 
-                    else:
-                        constant_multiplier = (5 - 1.5) / (2.9 - 0.8)
-                        test_test = 1.0 + test * 2
-                        test_test = (test_test - 1.5) / constant_multiplier
-                        test_test = np.clip(test_test, 1.4 , 1.5)
-                        if not self.rotary_exit_flag:
-                            self.target_vel = self.INPO_VEL
-
-                        ## print(f"직선에서 어긋났을때 = tgt vel 2.0일때 gain값: {test_test}")
+                    ## print(f"직선에서 어긋났을때 = tgt vel 2.0일때 gain값: {test_test}")
                     
-            self.gain = test_test
+           #self.gain = test_test
 
-        self.gain = 1
+        #self.gain = 1
         steering_angle = self.gain * np.arctan2(2.0 * self.vehicle_length * np.sin(angle_difference) / self.lookahead_distance, 1.0)
-        
-        # @TODO: 이 친구가 값을 적절하게 mapping 시켜주는 것은 아님 
-        #        ==> 따라서 최대 steering_angle 값을 보고 mapping 시켜줄 수 있는 값을 찾는게 중요
+        #print(" pure pursuit으로 계산되는 steering angle ", steering_angle)
+        steering_angle = self.mapping(steering_angle) + self.angle_offset
 
-        # 2/1 은 pure pursuit 조정하는 1팀(2인)
-        #        각종 미션에 대해 만족하는 코드를 짜는 1팀(2인)
-        steering_angle = np.clip(steering_angle, -0.5, 0.5)
-        
-        steer = steering_angle + 0.5
-        # print(steer, steering_angle)
+        self._min_angle = min(self._min_angle, steering_angle)
+        self._max_angle = max(self._max_angle, steering_angle)
 
-        # if self.target_vel <= self.TURN_VEL:
-        #     output = self.target_vel
+        #print('최소', self._min_angle, '최대', self._max_angle)
         
-        # elif self.target_vel == self.INPO: 
-        #     output = 1.5
-        
-        # else:
-        #     output = 2.2
-
-        # self.control_angle.linear.x = abs(output)
-        
-        # self.control_angle.angular.z = steering_angle + self.angle_offset
-        
+        #print(" 조향 각 크기: ", steer )
         if not self.stop_flag:
             # print(self.target_vel, steering_angle)
             self.vel_pub.publish(Float64(data = self.target_vel))
-            self.steer_pub.publish(Float64(data = steer))
+            self.steer_pub.publish(Float64(data = steering_angle))
+
+    def mapping(self, value):
+        # 현재 값(value)이 최소(from_min)와 최대(from_max) 범위 사이에 있는지 확
+
+        from_min = -0.18992659995162515
+        from_max = 0.18992659995162515
+
+        value = np.clip(value, from_min, from_max)
+
+        to_min = 0
+        to_max = 1
+
+        # 선형 변환 수행
+        from_range = from_max - from_min
+        to_range = to_max - to_min
+
+        # 선형 변환 공식 적용
+        mapped_value = ((value - from_min) / from_range) * to_range + to_min
+
+        return mapped_value
 
     def normalize_angle(self, angle):
-        # 조향각도를 -pi ~ +pi 범위로 정규화 (wrapping이라고 지칭)
         while angle > np.pi: angle -= 2.0 * np.pi
         while angle < -np.pi: angle += 2.0 * np.pi
+        #angle = (angle / (np.pi))*0.5
         return angle
 
     def direction_vector(self, yaw):
-        direction_vector = [np.cos(yaw), np.sin(yaw)]
-        return direction_vector
+        return np.array([np.cos(yaw), np.sin(yaw)])
     
     def stop(self):
         self.vel_pub.publish(Float64(data=0))  # 속도를 0으로 설정하여 정지
