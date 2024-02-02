@@ -23,13 +23,14 @@ class TrafficSub():
         rospy.Subscriber('/image_jpeg/compressed', CompressedImage, self.chk_stop_line)
         
         self.pub_speed = rospy.Publisher('/commands/motor/speed', Float64, queue_size=1)
+        self.pub_steer = rospy.Publisher('/commands/servo/position', Float64, queue_size=1)
         self.cmd_msg = Float64()
 
         # 정지할 때 카메라랑 속도 맞춰야 함
         self.rate = rospy.Rate(30)
 
         # 차량 속도에 따라 체크해야 하는 영역이 다름
-        self.speed = 1000
+        self.speed = 1600
 
         self.stream_sign = False
         self.traffic_status = 0
@@ -44,47 +45,49 @@ class TrafficSub():
         self.hsv = None
 
         self.stop_line_mask = np.zeros(shape=(480, 640, 3), dtype=np.uint8)
-        self.stop_line_mask[350:430, 40:520] = 255
+        self.stop_line_mask[250:440, 40:520] = 255
 
-        self.stop = False
+        self.stop_flag = False
         self.flag = True
 
         self.bridge = CvBridge()
         self.get_image = lambda msg: self.bridge.compressed_imgmsg_to_cv2(msg)
 
     def condition_move(self) -> None:
-        if self.stop:
-            self.cmd_msg.data = 0
+        if self.stop_flag and self.red_light:
+            self.cmd_msg.data = 0.
 
         else:
             self.cmd_msg.data = self.speed
-
-        # print(self.cmd_msg)
-        self.pub_speed.publish(self.cmd_msg)
+        
         self.rate.sleep()
 
     # 신호에 따라서 self.red_light 을 바꿈
     def traffic_callback(self, msg: GetTrafficLightStatus) -> None:    
         if msg.trafficLightIndex != 'SN000005':
-            self.stream_sign = False
             return
         
-        self.stream_sign = True
         self.red_light = msg.trafficLightStatus != 33
 
     def chk_stop_line(self, msg: CompressedImage) -> None:
         self.img = self.get_image(msg)
 
         bev = self.bev_transform()
-        res = len(cv2.bitwise_and(bev, self.stop_line_mask).nonzero()[0])
+        masking = cv2.bitwise_and(bev, self.stop_line_mask)
+        res = len(masking.nonzero()[0])
         
-        if self.flag:
-            self.stop = res > 80000
-        
-        if self.stop:
-            self.flag = False   
+        self.stop_flag = res > 70000
+        self.pub_steer.publish(Float64(data=0.5)) 
 
+        if self.stop_flag and self.red_light:
+            self.pub_speed.publish(Float64(data=0.))
+        
+        else:
+            self.pub_speed.publish(Float64(data=1800.))
+
+        cv2.imshow('img', self.img)
         cv2.imshow('bev', bev)
+        cv2.imshow('masking', masking)
         cv2.waitKey(1)
 
     def bev_transform(self):
@@ -130,10 +133,6 @@ class TrafficSub():
 if __name__ == '__main__':
     try:
         pub = TrafficSub()
-        while not rospy.is_shutdown():
-            pub.condition_move()
-            pub.rate.sleep()
-
         rospy.spin()
 
     except rospy.ROSInterruptException:
