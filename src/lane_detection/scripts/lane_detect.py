@@ -87,7 +87,7 @@ class LaneDetection():
     # ptx == (x, y)
     def get_gradient(self, pt1, pt2):
         # 만약에 start를 하지도 못한 경우
-        if pt2[0] == -1 or pt1[0] == 0: return 480.
+        # if pt2[0] == -1 or pt1[0] == 0: return 480.
         if pt2[0] - pt1[0] == 0: return 480.
         return (pt1[1] - pt2[1]) / (pt2[0] - pt1[0])
 
