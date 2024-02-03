@@ -5,7 +5,7 @@ import cv2
 import rospy
 import numpy as np
 
-import sys
+from std_msgs.msg import Int32
 
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage
@@ -19,6 +19,7 @@ class LaneDetection():
         rospy.Subscriber('/image_jpeg/compressed', CompressedImage, self.callback)
 
         self.lane_info_pub = rospy.Publisher('/lane_information', LaneInformation, queue_size=5)
+        self.stop_lane_pub = rospy.Publisher('/stop_lane_information', Int32, queue_size=5)
 
         self.img = None
         self.bridge = CvBridge()
@@ -26,6 +27,9 @@ class LaneDetection():
 
         self.start_left_x = -1
         self.start_right_x = -1
+
+        self.stop_lane_mask = np.zeros(shape=(480, 640, 3), dtype=np.uint8)
+        self.stop_lane_mask[250:440, 40:520] = 255
 
     def callback(self, msg: CompressedImage) -> None:
         self.img = self.get_image(msg)
@@ -177,7 +181,7 @@ class LaneDetection():
                 pub_grad_left_e_y = win
                     
             else:
-                left_lane_pt.x = 0
+                left_lane_pt.x = left_midpt_x + left_gradient
                 left_midpt_x = left_midpt_x + left_gradient
             
             prev_left_x = left_lane_pt.x
@@ -209,7 +213,7 @@ class LaneDetection():
                 pub_grad_right_e_y = win
 
             else:
-                right_lane_pt.x = 0
+                right_lane_pt.x = right_midpt_x + right_gradient
                 right_midpt_x = right_midpt_x + right_gradient
 
             right_lane_pt.y = win
@@ -233,6 +237,10 @@ class LaneDetection():
         
         lane_info.left_gradient = -10000 if not len(lane_info.left_lane_points) else self.get_gradient((pub_grad_left_s_x, pub_grad_left_s_y), (pub_grad_left_e_x, pub_grad_left_e_y))
         lane_info.right_gradient = -10000 if not len(lane_info.right_lane_points) else self.get_gradient((pub_grad_right_s_x, pub_grad_right_s_y), (pub_grad_right_e_x, pub_grad_right_e_y))
+        
+        masking = cv2.bitwise_and(self.bev_img, self.stop_lane_mask)
+        self.stop_lane_pub.publish(len(masking.nonzero()[0]))
+        
         self.lane_info_pub.publish(lane_info)
 
         # print('left', lane_info.left_gradient, 'right', lane_info.right_gradient)
