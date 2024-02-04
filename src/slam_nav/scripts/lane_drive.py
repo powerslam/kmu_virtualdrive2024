@@ -70,7 +70,7 @@ class Total:
         self.L_curv, self.R_curv, self.L_point, self.R_point = 0, 0, [], []
         rospy.Subscriber("/lane_information", LaneInformation, self.lane_callback)
 
-        self.COUNT = 3
+        self.COUNT = 5
 
         self.obstacle_judge_cnt = 0
         self.obstacle_type = None
@@ -109,7 +109,7 @@ class Total:
 
             else:
                 self.obstacle_judge_cnt += 1
-                if self.obstacle_judge_cnt < 2: return
+                if self.obstacle_judge_cnt < 5: return
 
                 now_v = np.array([obstacle_infos[chk_obstacle_idx].obst_x, obstacle_infos[chk_obstacle_idx].obst_y])
                 now_norm = np.linalg.norm(now_v)
@@ -122,7 +122,7 @@ class Total:
                 angle = np.arccos(np.dot(now_v, prev_v))
                 print('각', angle)
 
-                self.obstacle_type = 's' if abs(angle) < 0.06 else 'd'
+                self.obstacle_type = 's' if abs(angle) < 0.02 else 'd'
 
         elif self.obstacle_type == 's': # 정적 장애물인 경우
             print('정적')
@@ -145,15 +145,15 @@ class Total:
         elif self.obstacle_type == 'd': # 동적 장애물인 경우
             print('동적')
             # 장애물의 x 좌표가 0보다 큰 경우 ==> 차선을 탈출했다고 판정하고 출발
-            if obstacle_infos[chk_obstacle_idx].obst_x > 0:
+            if obstacle_infos[chk_obstacle_idx].obst_x > 0.25:
                 self.stop_flag = False
                 return
 
-            if self.obstacle_judge_cnt == 2:
-                self.stop_flag = False
-                return
+            # if self.obstacle_judge_cnt == 2:
+            #     self.stop_flag = False
+            #     return
             
-            if 0.1 < obstacle_infos[chk_obstacle_idx].obst_y:
+            if 0.1 < obstacle_infos[chk_obstacle_idx].obst_y or obstacle_infos[chk_obstacle_idx].obst_y < -0.2:
                 self.stop_flag = False
                 return
             
