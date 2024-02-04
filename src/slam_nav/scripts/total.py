@@ -109,6 +109,59 @@ class Total:
 
                 self.mission45_goal.append(pt)
 
+                pt = PoseStamped()
+                pt.header.frame_id = 'map'
+                pt.pose.position.x = _pt.position.x
+                pt.pose.position.y = _pt.position.y
+                pt.pose.orientation.z = _pt.orientation.z
+                pt.pose.orientation.w = _pt.orientation.w
+                
+                self.global_path.poses.append(pt)
+
+        '''
+        0.5029473684905209, 0.49642105277700965, 0.49184210509822124, 0.49184210509822124, 0.4857894736398328, 
+                             0.4857894736398328, 0.481263157340185, 0.481263157340185, 0.481263157340185, 0.47521052611790693, 
+                             0.47521052611790693, 0.4727368419618505, 0.4727368419618505, 0.4647894736398328, 0.4647894736398328, 
+                             0.4637894736398328, 0.4637894736398328, 0.463894736576425, 0.463894736576425, 0.463894736576425, 
+                             0.462894736576425, 0.462894736576425, 0.4624736840785493, 0.4624736840785493, 0.4624736840785493, 
+                             0.4716842106848611, 0.4716842106848611, 0.47373684203924693, 0.47373684203924693, 0.4803684210196165, 
+                             0.4803684210196165, 0.4803684210196165, 0.4803684210196165, 0.4803684210196165, 0.4844210526712077, 
+                             0.4868947368421097, 0.4877894736842283, 0.4877894736842283, 0.4872105263884713, 0.4872105263884713, 
+                             0.48557894736849194, 0.48557894736849194, 0.4791578947371258, 0.4791578947371258, 0.4791578947371258,
+                             0.4791578947371258, 0.4661578952849016, 0.4623157894748189, 0.4623157894748189, 0.4623157894748189, 
+                             0.4623157894748189, 0.4466842111096475, 0.4466842111096475, '''
+
+        self.fixted_turn = False
+        self.turn_control = [0.32668421253874985, 0.29315789630830535, 0.29315789630830535, 0.2844736874861782, 0.2844736874861782, 
+                             0.2747368463452887, 0.2747368463452887, 0.26294736355613635, 0.26294736355613635, 0.26294736355613635, 
+                             0.26231579232236346, 0.26231579232236346, 0.26231579232236346, 0.2692631579128909, 0.2482105223938823, 
+                             0.2482105223938823, 0.2482105223938823, 0.2482105223938823, 0.2492105223938823, 0.2492105223938823, 
+                             0.2572105223938823, 0.2572105223938823, 0.2572105223938823, 0.26473683655419844, 0.26473683655419844, 
+                             0.26473683655419844, 0.2763157923223635, 0.26031579232236346, 0.26031579232236346, 0.26542104841795267,
+                             0.26542104841795267, 0.26794736355613635, 0.26794736355613635, 0.2755263172278326, 0.2755263172278326, 
+                             0.28752631722783256, 0.28752631722783256, 0.28752631722783256, 0.2986842089572172, 0.2986842089572172, 
+                             0.2986842089572172, 0.2815789417447614, 0.28410526006482106, 0.28410526006482106, 0.2845789417447614, 
+                             0.2845789417447614, 0.2870526345283378, 0.2870526345283378, 0.2890000048597772, 0.2890000048597772, 
+                             0.2890000048597772, 0.27694736355613636, 0.27694736355613636, 0.27694736355613636, 0.28147368668439754, 
+                             0.2798947407966006, 0.2798947407966006, 0.27784210235679396, 0.27784210235679396, 0.27784210235679396, 
+                             0.2793157923223635, 0.2879473635561363, 0.2879473635561363, 0.28015789917973155, 0.28015789917973155, 
+                             0.2853157884219598, 0.2853157884219598, 0.2900526285146232, 0.2900526285146232, 0.2900526285146232, 
+                             0.29531578912997114, 0.29531578912997114, 0.30210526435419893, 0.31242105104858753, 0.32178947051596035, 
+                             0.32178947051596035, 0.33515789620870134, 0.33515789620870134, 0.3505789460214959, 0.3505789460214959, 
+                             0.37389473947616164, 0.37389473947616164, 0.3867368433652157, 0.3867368433652157, 0.3867368433652157, 
+                             0.4149473684871308, 0.4149473684871308, 0.4149473684871308, 0.4262631571331362, 0.4262631571331362, 
+                             0.4262631571331362, 0.4532631585937632, 0.4532631585937632, 0.4702105261179069, 0.4702105261179069, 
+                             0.477894736576425, 0.477894736576425, 0.48505263152289, 0.48505263152289, 0.4906842106848611, 0.4906842106848611, 
+                             0.4906842106848611, 0.49831578933500553, 0.49831578933500553, 0.49831578933500553, 0.5004210526712077, 
+                             0.5044736842105266, 0.5044736842105266, 0.5100526315789485, 0.5100526315789485, 0.5126315789803972, 
+                             0.5126315789803972, 0.5121578946575993, 0.5121578946575993, 0.5106842106650216, 0.5106842106650216, 
+                             0.5106842106650216, 0.5147368419864065, 0.5147368419864065, 0.5147368419864065, 0.5173684213300703,
+                             0.5190000000000999, 0.5190000000000999, 0.5190000000000999, 0.5195789472232585, 0.5169473684772701,
+                             0.5169473684772701, 0.5153684213300703, 0.5153684213300703, 0.5142631579608085, 0.5142631579608085, 
+                             0.5132105263158072, 0.5132105263158072, 0.5132105263158072, 0.5132105263158072, 0.5126842106650216, 
+                             0.5126842106650216, 0.5126842106650216, 0.5121578946575993, 0.5121578946575993]
+        self.turn_control_seq = 0
+
         self.goal_list = [self.mission23_goal, self.mission45_goal]
 
         self.vehicle_length = 0.26
@@ -121,7 +174,6 @@ class Total:
 
         self.is_current_vel = False
         self.is_state = False
-        self.target_vel = 0
         self.current_vel = 0.0
 
         self.NO_RIGHTLINE = False
@@ -159,6 +211,8 @@ class Total:
         self.INPO_VEL = 1200
         self.STRA_VEL = 2200
 
+        self.target_vel = self.LANE_DRIVE_VEL
+
         self._min_angle = 10000000
         self._max_angle = -10000000
 
@@ -171,6 +225,11 @@ class Total:
         self.now_orientation = None
         self.now_covariance = None
         self.dist = lambda pt: ((self.now_pose.x - pt.x) ** 2 + (self.now_pose.y - pt.y) ** 2) ** 0.5
+
+        self.stop_lane_cnt = 0
+
+        self.prev_stop_lane_flag = False
+        self.stop_lane_flag = False
         rospy.Subscriber("/amcl_pose", PoseWithCovarianceStamped, self.amcl_callback)
 
         #AMCL pose Publish
@@ -194,68 +253,8 @@ class Total:
         rospy.Subscriber('/rotary_info', RotaryArray, self.mission2)
 
         self.goal_list_offset_basis_pos = []
-        pcpt1 = PoseWithCovarianceStamped()
-
-        pcpt1.header.frame_id = 'map'
-        pcpt1.pose.pose.position.x = 22.447038637726802
-        pcpt1.pose.pose.position.y = -9.91866058213321
-        pcpt1.pose.pose.position.z = 0.0
-        
-        pcpt1.pose.pose.orientation.z = 0
-        pcpt1.pose.pose.orientation.w = 1
-
-        pcpt1.pose.covariance = [0.07133258314559043, 0.0007160430888291103, 0.0, 0.0, 0.0, 0.0, 0.0007160430888291103, 0.008314672037130322, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0006742034495351607]
-        
-        pcpt2 = PoseWithCovarianceStamped()
-        pcpt2.header.frame_id = 'map'
-        pcpt2.pose.pose.position.x = 27.450009841902993
-        pcpt2.pose.pose.position.y = -9.873217815691753
-        pcpt2.pose.pose.position.z = 0.0
-        
-        pcpt2.pose.pose.orientation.z = 9.290626599355373e-08
-        pcpt2.pose.pose.orientation.w = 0.9999999999999957
-
-        pcpt2.pose.covariance = [0.09617164174539994, 0.00261445395364035, 0.0, 0.0, 0.0, 0.0, 0.00261445395364035, 0.010357851297897014, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0005979516355667143]
-
-        pcpt3 = PoseWithCovarianceStamped()
-        pcpt3.header.frame_id = 'map'
-        pcpt3.pose.pose.position.x = 32.7255152321968
-        pcpt3.pose.pose.position.y = -9.800117448766997
-        pcpt3.pose.pose.position.z = 0.0
-        
-        pcpt3.pose.pose.orientation.z = 0.004380603417016627
-        pcpt3.pose.pose.orientation.w = 0.9999904051108205
-
-        pcpt3.pose.covariance = [0.16680814114943132, 0.005254066881377639, 0.0, 0.0, 0.0, 0.0, 0.005254066881377639, 0.008982409383690992, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0009251896019172501]
-
-        pcpt4 = PoseWithCovarianceStamped()
-        pcpt4.header.frame_id = 'map'
-        pcpt4.pose.pose.position.x = 35.18268696764537
-        pcpt4.pose.pose.position.y = -6.5851935867322435
-        pcpt4.pose.pose.position.z = 0.0
-        
-        pcpt4.pose.pose.orientation.z = 0.6859451120124952
-        pcpt4.pose.pose.orientation.w = 0.7276532850926775
-
-        pcpt4.pose.covariance = [0.09735099916315448, 0.00866992301166647, 0.0, 0.0, 0.0, 0.0, 0.008669923011638048, 0.023849600480644995, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0016478906776024654]
-
-        pcpt5 = PoseWithCovarianceStamped()
-        pcpt5.header.frame_id = 'map'
-        pcpt5.pose.pose.position.x = 29.493444832286002
-        pcpt5.pose.pose.position.y = -2.127305540666141
-        pcpt5.pose.pose.position.z = 0.0
-        
-        pcpt5.pose.pose.orientation.z = -0.7100292643029686
-        pcpt5.pose.pose.orientation.w = 0.7041721691698594
-
-        pcpt5.pose.covariance = [0.03444309833639636, -0.00037648768975628855, 0.0, 0.0, 0.0, 0.0, -0.000376487689763394, 0.01262673110721746, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0002051232161171138]
-
-        self.goal_list_offset_basis_pos = [pcpt1, pcpt2, pcpt3, pcpt4, pcpt5]
-
         self.offset_seq = 0
 
-        self.prev_stop_lane_flag = False
-        self.stop_lane_flag = False
         rospy.Subscriber('/stop_lane_information', Int32, self.stop_lane_callback)
         rospy.Subscriber('/GetTrafficLightStatus', GetTrafficLightStatus, self.mission3)
 
@@ -283,15 +282,15 @@ class Total:
         L7_point = self.L_point[7].x
         R7_point = self.R_point[7].x
 
-        if not self.first_curve_start:
-            self.target_vel = self.LANE_DRIVE_VEL
+        # if not self.first_curve_start:
+        #     self.target_vel = self.LANE_DRIVE_VEL
 
-            if np.pi * 17 / 18 <= abs(self.get_yaw_from_orientation(self.now_orientation)):
-                self.first_curve_start = True
-                # self.stop_flag=True
-                # self.stop()
+        #     if np.pi * 17 / 18 <= abs(self.get_yaw_from_orientation(self.now_orientation)):
+        #         self.first_curve_start = True
+        #         # self.stop_flag=True
+        #         # self.stop()
                 
-            return
+        return
 
         # 1/25 19:46 ==> 4 였음
         reference_quat = self.goal_list[int(self.MISSION > 2)][
@@ -448,8 +447,7 @@ class Total:
             # #print('mission0 hi?')
             self.mission0()
         
-        else:
-            self.run()
+        else: self.run()
 
     def get_yaw_from_orientation(self, quat):
         euler = tf.transformations.euler_from_quaternion(
@@ -483,188 +481,103 @@ class Total:
 
     def mission1(self, msg: LidarObstacleInfoArray): # 장애물 구간
         if True or (self.MISSION != 1 and self.MISSION != 2): return
-
         if not self.now_pose: return
 
-        now_yaw = self.get_yaw_from_orientation(self.now_orientation)
-        
-        # 만약에 yaw값이 양의 방향 90도 언저리 면
-        if 80 * np.pi / 180 < now_yaw < 100 * np.pi / 180:
-            self.MISSION = 2
+        obstacle_infos = msg.obstacle_infos
+        if not len(obstacle_infos):
+            self.avoid_flag = False
+            self.stop_flag = False
 
-        if self.obstacle_type and self.obstacle_stage != 2 and self.target_vel == self.TURN_VEL and abs(self.R_curv) < 0.1:
-            #print('turn')
-            self.obstacle_stage = 2
-
-            # 다음 장애물은 반드시 반대 타입의 장애물이기 때문
-            self.obstacle_type = 's' if self.obstacle_type == 'd' else 'd'
+            self.prev_obstacle_pt = None
+            self.obstacle_judge_cnt = 0
+            self.obstacle_type = None
             return
 
-        obstacle_infos = msg.obstacle_infos
-        if not len(obstacle_infos): return
+        # 나랑 가장 가까운 장애물을 가지고 판단
+        dists = np.array([np.hypot(info.obst_x, info.obst_y) for info in obstacle_infos])
+        chk_obstacle_idx = np.argmin(dists)
 
-        # 미션 5에 대한 회피는 따로 만들어야 함
-        # 동적인 경우 / 정적인 경우 모두 차량의 앞에 위치하게 됨
-        # 따라서 1. 일단 정지를 하고 2. 장애물 x에 변화가 없으면?( ==> 이건 나중에 테스트 해봐야 암) 회피경로 생성
-        # 3. 아니면 기다렸다가 출발
+        dist = max(0., dists[chk_obstacle_idx] - 0.21)
+        
+        # 거리가 가까우면 일단 정지함
+        # 장애물 타입이 결정되지 않은 경우
+        if not self.obstacle_type and dist < 0.8:
+            self.stop()
+            self.stop_flag = True
+            # print('hi?')
 
-        if self.obstacle_stage == 1: # mission 2
-            # 가장 가까운 장애물로 바꾸긴 해야 함
-            for info in obstacle_infos:
-                # 차량의 현재 방향에 맞춰 라이다 좌표를 회전시킴
-                rotated_pt = self.rotation_matrix(-now_yaw) @ np.array([info.obst_x, info.obst_y, 1.])
-                info.obst_x = rotated_pt[0]
-                info.obst_y = rotated_pt[1]
+            if self.prev_obstacle_pt is None:
+                self.prev_obstacle_pt = obstacle_infos[chk_obstacle_idx]
 
-                #print('mission2, 장애물 발견')
-                self.stop()
-                self.stop_flag = True
+            else:
+                self.obstacle_judge_cnt += 1
+                if self.obstacle_judge_cnt < 5: return
+
+                now_v = np.array([obstacle_infos[chk_obstacle_idx].obst_x, obstacle_infos[chk_obstacle_idx].obst_y])
+                now_norm = np.linalg.norm(now_v)
+                now_v /= now_norm
+                
+                prev_v = np.array([self.prev_obstacle_pt.obst_x, self.prev_obstacle_pt.obst_y])
+                prev_norm = np.linalg.norm(prev_v)
+                prev_v /= prev_norm
+                
+                angle = np.arccos(np.dot(now_v, prev_v))
+                print('각', angle)
+
+                self.obstacle_type = 's' if abs(angle) < 0.02 else 'd'
+
+        elif self.obstacle_type == 's': # 정적 장애물인 경우
+            print('정적')
+
+            # 지금은 뭐지
+            # 그냥 라인 보고 가잖아
+            # 그래서 중간에 꼬일수도 있으니까 
+            # obstacle_avoidance 리스트를 만들어서
+            # 이 친구를 다 돌 때까지는 lane_detection 으로 안감
+            # 즉, pure pursuit 으로 간다 라고 하면 될 듯
+
+            self.stop_flag = True
+            self.stop()
+            return
+
+            # 특정 영역 밖이면 그냥 지나가기
+            if obstacle_infos[chk_obstacle_idx].obst_x < -0.2 or obstacle_infos[chk_obstacle_idx].obst_x > 0.2:
+                print('음?')
+                self.stop_flag = False
+                return
+            
+            else:
+                print('음??')
+                # 회피기동
+                pass
+        
+        elif self.obstacle_type == 'd': # 동적 장애물인 경우
+            print('동적')
+            # 장애물의 x 좌표가 0보다 큰 경우 ==> 차선을 탈출했다고 판정하고 출발
+            if obstacle_infos[chk_obstacle_idx].obst_x > 0.25:
+                self.stop_flag = False
                 return
 
-                dist = max(0., np.hypot(info.obst_x, info.obst_y) - 0.21)
-                
-                # 장애물 종류가 결정된 경우
-                if self.obstacle_type:
-                    #print('현재 장애물 단계', self.obstacle_type)
-                    if self.obstacle_type == 'd':
-                        # 장애물의 x 좌표가 0보다 큰 경우 ==> 차선을 탈출했다고 판정하고 출발
-                        if info.obst_x > 0:
-                            self.stop_flag = False
+            # if self.obstacle_judge_cnt == 2:
+            #     self.stop_flag = False
+            #     return
+            
+            # 조건을 바꾸긴 해야 함
+            if 0.1 < obstacle_infos[chk_obstacle_idx].obst_y or obstacle_infos[chk_obstacle_idx].obst_y < -0.2:
+                self.stop_flag = False
+                return
+            
+            self.stop_flag = True
+            self.stop()
 
-                        # 재정지 해야하는 경우임
-                        # 장애물의 x 좌표가 -0.8 인 경우 그리고, 장애물의 좌표가 0.1 보다 큰 경우 거리가 아직 1.3 보다 작은 경우는 정지
-                        elif info.obst_x > -0.8 and info.obst_y > 0.1 and dist < 0.95:
-                            self.stop_flag = True
-                            self.stop()
+                # # 재정지 해야하는 경우임
+                # # 장애물의 x 좌표가 -0.8 인 경우 그리고, 장애물의 좌표가 0.1 보다 큰 경우 거리가 아직 1.3 보다 작은 경우는 정지
+                # elif obstacle_infos[chk_obstacle_idx].obst_x > -0.8 and obstacle_infos[chk_obstacle_idx].obst_y > 0.1 and dist < 0.95:
+                #     self.stop_flag = True
+                #     self.stop()
 
-                    # 정적 장애물인 경우
-                    elif info.obst_x < -0.2 or info.obst_x > 0.2:
-                        # 안 피해도 되는 장애물임
-                        return
-
-                    else:
-                        # 임시
-                        dy_ob_x = info.obst_y + self.now_pose.x # amcl상에서 장애물의 x좌표
-                        dy_ob_y = -info.obst_x + self.now_pose.y # amcl상에서 장애물의 y좌표
-                        self.stop_flag  = True
-                        self.stop()
-                        # 차선 변경 실시
-                        
-                        # 장애물 옆으로 회피
-                        if self.dy_flag == False: # 2차선일 때
-                            #1차선으로 이동
-                            self.dy_flag = True
-                            target_x = dy_ob_x        # amcl상에서 이동해야 할 x좌표
-                            target_y = dy_ob_y + 0.35 # amcl상에서 이동해야 할 y좌표
-                            self.stop_flag  = False
-                            self.create_trajectory( target_x, target_y, dist)
-                            
-
-                            #y축을 빼야 하는 경우도 있는걸 염두
-
-                        elif self.dy_flag == True: # 1차선일 때
-                            #2차선으로 이동
-                            self.dy_flag = False
-                            target_x = dy_ob_x        # amcl상에서 이동해야 할 x좌표
-                            target_y = dy_ob_y - 0.35 # amcl상에서 이동해야 할 y좌표
-                            self.stop_flag  = False
-                            self.create_trajectory( target_x, target_y, dist)
-                            
-
-                        #y축을 빼야 하는 경우도 있는걸 염두
-
-
-
-
-
-
-
-
-
-                        pass
-                
-                else:
-                    #print('장애물 미결정', info)
-                    # 특정 경우를 제외하면 무조건 동적 장애물
-                    # 원래는 그냥 구분이 안 간다는게 문제였는데, 그냥 이 정도 선에서 만족해도 될 듯?
-                    self.obstacle_type = 's' if -0.5 < info.obst_x < 0.5 else 'd'
-                    self.dy_flag = False # False는 현재 자동차가 2차선, True는 현재 자동차가 1차선
-                    return
-                
-            # for문에 달린 else
-            else:
-                if not obstacle_infos:
-                    self.stop_flag = False
-
-            # # # #print('self.obstacle_type', self.obstacle_type)
-
-        elif self.obstacle_stage == self.MISSION: # 둘이 같은 경우 == mission 3
-            for info in obstacle_infos:
-                # 차량의 현재 방향에 맞춰 라이다 좌표를 회전시킴
-                # rotated_pt = self.rotation_matrix(-now_yaw) @ np.array([info.obst_x, info.obst_y, 1.])
-                # info.obst_x = rotated_pt[0]
-                # info.obst_y = rotated_pt[1]
-
-                #print('mission3, 장애물 발견')
-                dist = max(0., np.hypot(info.obst_x, info.obst_y) - 0.21)
-
-                #print('현재 장애물 단계', self.obstacle_type)
-                if self.obstacle_type == 'd':
-                    # 장애물의 x 좌표가 0보다 큰 경우 ==> 차선을 탈출했다고 판정하고 출발
-                    if info.obst_x > 0:
-                        self.stop_flag = False
-
-                    # 재정지 해야하는 경우임
-                    # 장애물의 x 좌표가 -0.8 인 경우 그리고, 장애물의 좌표가 0.1 보다 큰 경우 거리가 아직 1.3 보다 작은 경우는 정지
-                    elif info.obst_x > -0.8 and info.obst_y > 0.1 and dist < 0.9:
-                        self.stop_flag = True
-                        self.stop()
-
-                # 정적 장애물인 경우
-                elif info.obst_x < -0.2 or info.obst_x > 0.2:
-                    # 안 피해도 되는 장애물임
-                    return
-
-                else:
-                    # 임시
-                    dy_ob_x = info.obst_y + self.now_pose.x # amcl상에서 장애물의 x좌표
-                    dy_ob_y = -info.obst_x + self.now_pose.y # amcl상에서 장애물의 y좌표
-                    self.stop_flag  = True
-                    self.stop()
-                    # 차선 변경 실시
-                    
-                    # 장애물 옆으로 회피
-                    if self.dy_flag == False: # 2차선일 때
-                        #1차선으로 이동
-                        self.dy_flag = True
-                        target_x = dy_ob_x        # amcl상에서 이동해야 할 x좌표
-                        target_y = dy_ob_y + 0.35 # amcl상에서 이동해야 할 y좌표
-                        self.stop_flag  = False
-                        self.create_trajectory( target_x, target_y, dist)
-                        
-
-                        #y축을 빼야 하는 경우도 있는걸 염두
-
-                    elif self.dy_flag == True: # 1차선일 때
-                        #2차선으로 이동
-                        self.dy_flag = False
-                        target_x = dy_ob_x        # amcl상에서 이동해야 할 x좌표
-                        target_y = dy_ob_y - 0.35 # amcl상에서 이동해야 할 y좌표
-                        self.stop_flag  = False
-                        self.create_trajectory( target_x, target_y, dist)
-                        
-
-                    #y축을 빼야 하는 경우도 있는걸 염두
-
-
-
-
-
-
-
-
-
-                    pass
+            # 지금은 정적 장애물의 경우에만 따지는 걸로
+            # 그리고 동적 장애물은 이전 위치와 현재 위치가 달라지면 알아보는 걸로
 
     def mission2(self, msg: RotaryArray):
         self.move_car = msg.moving_cars
@@ -678,28 +591,21 @@ class Total:
         self.stop_lane_flag = msg.data > 70000
 
         if self.prev_stop_lane_flag and not self.stop_lane_flag:
-            if self.offset_seq < len(self.goal_list_offset_basis_pos):
-                self.republish_initialpose() #이때 amcl 좌표 보정해버림 > 이 함수가 실행되어 Pose 재발행 
-                # self.offset_seq += 1
+            # self.republish_initialpose() #이때 amcl 좌표 보정해버림 > 이 함수가 실행되어 Pose 재발행 
+            self.stop_lane_cnt += 1
             
-            # print(self.goal_list_offset_basis_pos[self.offset_seq])
-            # print('정지선을 발견한 후의 좌표', self.now_pose)
-            # print('정지선을 발견한 후의 방향', self.now_orientation)
-            # print('정지선을 발견한 후의 공분산', self.now_covariance)
-
-        # 정지선을 발견할 때마다 보정용 고정 좌표와 현재 acml 좌표의 값을 비교함
-        # 정지선 인식 지점(prev: True, now: False 일 때의 좌표를 출력해서 비교하는게 그나마 맞을 듯)
-        # print('목표 좌표', self.goal_list[int(self.MISSION > 2)][self.sequence].target_pose.pose.position)
-        # print('현재 좌표', self.now_pose)
-
     def mission3(self, msg: GetTrafficLightStatus):
         if not self.rotary_exit_flag: return
 
         #print('정지선', self.stop_lane_flag)
         #print('신호', msg.trafficLightStatus < 16)
 
+        if msg.trafficLightIndex != 'SN000005':
+            return
+
         # 정지선이고 좌회전 신호(33), 직진 신호(16)가 아니라면
-        if self.stop_lane_flag and msg.trafficLightStatus < 16:
+        if self.stop_lane_cnt >= 5 and msg.trafficLightStatus < 16:
+            print('신호등 정지')
             self.stop()
             self.stop_flag = True
 
@@ -773,20 +679,14 @@ class Total:
         plt.show()
 
     def run(self):
-        # 정지선이 발견될 때마다 해당 지점의 amcl pose를 보정해줌
-
         if not self.now_pose: return
         
         if not self.rotary_exit_flag and self.dist(self.goal_list[int(self.MISSION > 2)][self.sequence].target_pose.pose.position) < self.lookahead_distance:
-            if self.obstacle_point > 0:
-                self.obstacle_point -= 1
-            
             if self.sequence == len(self.goal_list[int(self.MISSION > 2)]) - 1:
                 # 지금은 거리로 하고 있는데, 부정확해보임 따라서, 정지선 판단 등을 넣어야 할듯?
 
                 # 모든 미션이 끝난 경우
                 if self.MISSION > 2:
-                    #print('if self.MISSION > 2')
                     self.stop_flag = True
                     self.stop()
                     return
@@ -798,7 +698,6 @@ class Total:
                    #if self.stop_lane_flag:
                         # 로터리 언저리에 차량이 있으면 정지
                     if 0 < self.min_dis.dis < 1.5:
-                        #print('if 0 < self.min_dis.dis < 1.5')
                         self.stop_flag = True 
                         self.stop() 
                         
@@ -817,7 +716,7 @@ class Total:
                 for seq in range(self.sequence, len(self.goal_list[int(self.MISSION > 2)])):
                     if self.dist(self.goal_list[int(self.MISSION > 2)][seq].target_pose.pose.position) < self.lookahead_distance:
                         self.sequence = seq
-
+        
         # 차량 좌표계는 (차량 x축) = (일반 y축), (차량 y축) = -(일반 x축)
         dx = self.goal_list[int(self.MISSION > 2)][self.sequence].target_pose.pose.position.x - self.now_pose.x
         dy = self.goal_list[int(self.MISSION > 2)][self.sequence].target_pose.pose.position.y - self.now_pose.y 
@@ -846,7 +745,7 @@ class Total:
 
         # 원래 4.93 , 1.8 중 뭐지?
 
-        self.gain=1
+        self.gain = 1
         
         # TILT = abs(angle_difference) #틀어진 정도 
 
@@ -867,17 +766,16 @@ class Total:
         #     elif not self.rotary_exit_flag:
         #         self.target_vel = self.INPO_VEL
         #         print("직선에서 어긋났을때 = tgt vel 2.0일때 gain값")
-                    
-
+        
         steering_angle = self.gain * np.arctan2(2.0 * self.vehicle_length * np.sin(angle_difference) / self.lookahead_distance, 1.0)
         # #print("pure pursuit으로 계산되는 steering angle", steering_angle)
         steering_angle = self.mapping(steering_angle) + self.angle_offset
+
         if self.target_vel == self.LANE_DRIVE_VEL:
-            # print("pure pursuit끄고 차선 주행만 진행 중 ")
-            
             e = 0.00000000001
             some_value = 1 / ((self.R_curv + e) * 2.5) # 살짝 키운값
 
+            MID_L_POINT = 190
             MID_POINT = 342
 
             l7_pt = self.L_point[7].x
@@ -885,12 +783,21 @@ class Total:
 
             m = (l7_pt + r7_pt) // 2
 
-            # 1차 조향각
-            steering_angle = self.mapping(some_value, -20, 20, 1, 0)
+            if self.stop_lane_cnt == 4 and ((np.pi * 17 / 18 <= abs(self.get_yaw_from_orientation(self.now_orientation)) and abs(self.L_curv) < 0.1) or self.fixted_turn) and self.turn_control_seq < len(self.turn_control):
+                    print('왼쪽으로 꺾어야 함!', self.turn_control_seq)
+                    self.fixted_turn = True
+                    steering_angle = self.turn_control[self.turn_control_seq]
+                    self.turn_control_seq += 1
 
-            # 오른차선의 중앙값보다 r7_pt 의 좌표가 작으면 => 왼쪽으로 더 틀어야 함
-            # 오른차선의 중앙값보다 r7_pt 의 좌표가 크면 => 오른쪽으로 더 틀어야 함
-            steering_angle -= (MID_POINT - m) / 1000
+            elif self.stop_lane_cnt == 5:
+                print('self.stop_lane_cnt == 5')
+                self.stop()
+                self.stop_flag = True
+
+            else:
+                steering_angle = self.mapping(some_value, -20, 20, 1, 0)
+                steering_angle -= (MID_POINT - m) / 1000
+            
             self.target_vel = self.LANE_DRIVE_VEL
         
         ##print(" 조향 각 크기: ", steer )
@@ -927,41 +834,59 @@ class Total:
         # 만약에 정지선을 발견했다면
         # 미리 저장된 그 정보를 바탕으로 전체적으로 시퀀스를 조정해야 함
         # 1. 일단 goal_list 에 있는 모든 좌표에 offset을 +- 해줘야 함
+        basis_x = self.now_pose.x
+        basis_y = self.now_pose.y
+
         # 1-1. offset 구하기
-        offset_x = self.goal_list_offset_basis_pos[self.offset_seq].pose.pose.position.x - self.now_pose.x
-        offset_y = self.goal_list_offset_basis_pos[self.offset_seq].pose.pose.position.y - self.now_pose.y
+        offset_x = self.goal_list_offset_basis_pos[self.offset_seq].pose.pose.position.x - basis_x
+        offset_y = self.goal_list_offset_basis_pos[self.offset_seq].pose.pose.position.y - basis_y
         
+        print(offset_x, offset_y)
+
         # 1-2. 모든 goal_list에 있는 모든 좌표에 offset 적용
+        self.global_path = Path()
+        self.global_path.header.frame_id = 'map'
+        
         for pos in range(len(self.goal_list[0])):
             self.goal_list[0][pos].target_pose.pose.position.x += offset_x
             self.goal_list[0][pos].target_pose.pose.position.y += offset_y
+
+            pt = PoseStamped()
+            pt.header.frame_id = 'map'
+            pt.pose.position.x = self.goal_list[0][pos].target_pose.pose.position.x
+            pt.pose.position.y = self.goal_list[0][pos].target_pose.pose.position.y
+            pt.pose.orientation.z = self.goal_list[0][pos].target_pose.pose.orientation.z
+            pt.pose.orientation.w = self.goal_list[0][pos].target_pose.pose.orientation.w
+            
+            self.global_path.poses.append(pt)
 
         for pos in range(len(self.goal_list[1])):
             self.goal_list[1][pos].target_pose.pose.position.x += offset_x
             self.goal_list[1][pos].target_pose.pose.position.y += offset_y
 
+            pt = PoseStamped()
+            pt.header.frame_id = 'map'
+            pt.pose.position.x = self.goal_list[1][pos].target_pose.pose.position.x
+            pt.pose.position.y = self.goal_list[1][pos].target_pose.pose.position.y
+            pt.pose.orientation.z = self.goal_list[1][pos].target_pose.pose.orientation.z
+            pt.pose.orientation.w = self.goal_list[1][pos].target_pose.pose.orientation.w
+            
+            self.global_path.poses.append(pt)
+
+        self.path_pub.publish(self.global_path)
+
         # 2. 그리고 현재 내 위치를 기반으로 다시 시작 시퀀스를 찾아야 함 ==> 왜냐 self.lookahead 때문에 sequence 가 현재 내 위치 언저리를 가리키지 않은 상태이기 때문임
         # 일단 순차적으로 탐색하면서 내 방향이랑 비슷한 시퀀스 및 좌표를 가진 seq를 가져와야 하는 부분임
-        # 기억에 mission23에 대해서만 
-        # for pos in range(len(self.goal_list[0]))
+        # 기억에 mission23에 대해서만
+        self.sequence = np.argmin(np.array([np.hypot(pos.target_pose.pose.position.x - basis_x, pos.target_pose.pose.position.y - basis_y) for pos in self.goal_list[0]]))
+        for seq in range(self.sequence, len(self.goal_list[0])):
+            if self.dist(self.goal_list[0][seq].target_pose.pose.position) < self.lookahead_distance:
+                self.sequence = seq
 
-
-
-        init_pose=PoseWithCovarianceStamped()
-        init_pose.header.stamp = rospy.Time.now()
-        init_pose.header.frame_id = "map"
-
-        init_pose.pose.pose.position.x = self.goal_list_offset_basis_pos[self.offset_seq].pose.pose.position.x 
-        init_pose.pose.pose.position.y = self.goal_list_offset_basis_pos[self.offset_seq].pose.pose.position.y
-        init_pose.pose.pose.orientation.z = self.goal_list_offset_basis_pos[self.offset_seq].pose.pose.orientation.z
-        init_pose.pose.pose.orientation.w = self.goal_list_offset_basis_pos[self.offset_seq].pose.pose.orientation.w
-        init_pose.pose.covariance = [0.] * 36
-        init_pose.pose.covariance[0] = 0.001
-        init_pose.pose.covariance[7] = 0.001
-
-        # 위치 조정 후 발행 
-        self.republish_amcl.publish(init_pose)
+        # # 위치 조정 후 발행 
+        # self.republish_amcl.publish(init_pose)
         
 if __name__ == "__main__":
+
     nc = Total()
     rospy.spin()
