@@ -41,6 +41,8 @@ class Total:
         # node 정보 초기화
         rospy.init_node("navigation_client")
 
+        self.traffic_sign = None
+
         # 현재 수행해야 할 미션이 무엇인지 가리키는 함수
         self.MISSION = 0
 
@@ -75,7 +77,10 @@ class Total:
 
         self.direction = 0 
         self.dy_flag = False
-
+        
+        self.prev_yaw = 0
+        self.test_minmax = []  #TILT
+        self.obst_cnt = 0
         self.obstacle_avoidance = []
 
         # 로터리 및 좌회전 미션(로터리 앞 정지선 ~ 골 지점까지)
@@ -265,7 +270,7 @@ class Total:
         # 1/25 19:46 ==> 4 였음
         reference_quat = self.goal_list[
             # self.sequence 보다 뒤에 있는 점 중에 lookahead_distacne 랑 비슷한 친구를 더하는게 맞는거
-            min(self.sequence + 12, len(self.goal_list) - 1)
+            min(self.sequence + 3 , len(self.goal_list) - 1)
         ].pose.orientation  # 이전 4
 
         reference_yaw = self.get_yaw_from_orientation(reference_quat)
@@ -276,8 +281,8 @@ class Total:
         self.yaw_diff_mission1 = np.arccos(np.dot(ref_vec,vec)) 
         
         # 검은 바탕일 때
-        self.NO_LEFTLINE = len(np.unique([pt.x for pt in self.L_point])) < 4
-        self.NO_RIGHTLINE = len(np.unique([pt.x for pt in self.R_point])) < 4
+        self.NO_LEFTLINE = len(np.unique([pt.x for pt in self.L_point])) == 1
+        self.NO_RIGHTLINE = len(np.unique([pt.x for pt in self.R_point])) == 1
         self.DETECT_BOTH = not (self.NO_LEFTLINE or self.NO_RIGHTLINE)
 
         MID_R_POINT = 498
@@ -294,7 +299,7 @@ class Total:
                 # # #print("커브구간 진입  ")
                 self.curve_start = False
             
-            self.angle_offset = (self.angle_offset / 120) * np.pi / 60
+            #self.angle_offset = (self.angle_offset / 120) * np.pi / 40
 
         else: # 직진하는 경우
             if self.curve_endpoint > 0 and not self.curve_start :  # Ld값 짧은상태=코너 주행중이었다면, 2번 속도 증가무시
@@ -302,7 +307,7 @@ class Total:
 
                 self.target_vel = self.TURN_VEL
                 self.curve_endpoint -= 1
-                self.angle_offset = (self.angle_offset / 120) * np.pi / 60
+                #self.angle_offset = (self.angle_offset / 120) * np.pi / 40
 
             else:
                 # #print("고속 직진 중 ")
@@ -347,13 +352,9 @@ class Total:
         # 그리고, obstpoint 가 끝나고 회피 시작 시 x 좌표 및 방향이 똑같으면 그제서야 lane 만 보는 주행을 하는 것으로
         # 합의 봄 ==> 이견 있으면 적길 바람
         elif self.target_vel == self.OBST_VEL:
-            self.lookahead_distance = 0.7
+            self.lookahead_distance = 0.6
 
-        if self.MISSION == 0:
-            # #print('mission0 hi?')
-            self.mission0()
-        
-        
+        if self.MISSION == 0: self.mission0()
         else: self.run()
 
     def get_yaw_from_orientation(self, quat):
@@ -391,7 +392,7 @@ class Total:
     # 2. 지금 장애물은 가까운 거 기준이라서 또 있는 장애물을 못 봄 => y 좌표 가지고 해결 가능 => y가 너무 가까우면 제외하면 되니까
 
     def mission1(self, msg: LidarObstacleInfoArray): # 장애물 구간
-        if True or self.MISSION != 1 and self.MISSION != 2: return
+        if self.MISSION == 0 or self.MISSION == 3: return
         if not self.now_pose: return
 
         obstacle_infos = msg.obstacle_infos
@@ -407,19 +408,20 @@ class Total:
 
         info = obstacle_infos[chk_obstacle_idx]
 
-        avoid_offset = 0.315
+        avoid_offset = 0.314
 
         yaw = abs(self.get_yaw_from_orientation(self.now_orientation)) #orientation is quat
 
-        if yaw < 0.3:
+        if yaw < np.pi / 4:
             print("위로가는 방향 ")
-            self.direction =1 
-        elif yaw < 1.7:
+            self.direction = 1 
+        elif yaw < 2.6:
             print( "왼쪽 가는 방향 ")
-            self.direction =2 
+            self.direction = 2 
         else:
             print(" 아래로 가는 방향 ")
-            self.direction =3 
+            self.direction = 3 
+        
 
         # 거리가 가까우면 일단 정지함
         # 장애물 타입이 결정되지 않은 경우
@@ -427,46 +429,55 @@ class Total:
             self.stop()
             self.stop_flag = True
             # print('hi?')
+            self.prev_yaw = yaw  # @> 처음 장애물을 본 시점에서 yaw값을 저장함 
 
-            if self.prev_obstacle_pt is None:
+            self.obstacle_judge_cnt += 1
+            if self.obstacle_judge_cnt < 8: 
                 self.prev_obstacle_pt = obstacle_infos[chk_obstacle_idx]
+                return
 
-            else:
-                self.obstacle_judge_cnt += 1
-                if self.obstacle_judge_cnt < 5: return
+            now_v = np.array([obstacle_infos[chk_obstacle_idx].obst_x, obstacle_infos[chk_obstacle_idx].obst_y])
+            now_norm = np.linalg.norm(now_v)
+            now_v /= now_norm
+            
+            prev_v = np.array([self.prev_obstacle_pt.obst_x, self.prev_obstacle_pt.obst_y])
+            prev_norm = np.linalg.norm(prev_v)
+            prev_v /= prev_norm
 
-                now_v = np.array([obstacle_infos[chk_obstacle_idx].obst_x, obstacle_infos[chk_obstacle_idx].obst_y])
-                now_norm = np.linalg.norm(now_v)
-                now_v /= now_norm
-                
-                prev_v = np.array([self.prev_obstacle_pt.obst_x, self.prev_obstacle_pt.obst_y])
-                prev_norm = np.linalg.norm(prev_v)
-                prev_v /= prev_norm
-                
-                angle = np.arccos(np.dot(now_v, prev_v))
-                print('각', angle)
-
-                self.obstacle_type = 's' if abs(angle) < 0.06 else 'd'
+            angle = np.arccos(np.dot(now_v, prev_v))
+            self.obstacle_type = 's' if abs(angle) < 0.1 else 'd'
 
         elif self.obstacle_type == 's': # 정적 장애물인 경우
+            self.obst_cnt +=1
             print('정적')
             self.target_vel = self.OBST_VEL
-            dy_ob_x = info.obst_y + self.now_pose.x # amcl상에서 장애물의 x좌표
-            dy_ob_y = -info.obst_x + self.now_pose.y # amcl상에서 장애물의 y좌표
+            if self.direction == 1 :
+                dy_ob_x = info.obst_y + self.now_pose.x # amcl상에서 장애물의 x좌표
+                dy_ob_y = -info.obst_x + self.now_pose.y # amcl상에서 장애물의 y좌표
+            elif self.direction == 2: 
+                dy_ob_x = self.now_pose.x # amcl상에서 장애물의 x좌표
+                dy_ob_y = info.obst_y + self.now_pose.y # amcl상에서 장애물의 y좌표
+            else: #@TODO : 미션 5에서 나오는 경우 , 그냥 장애물좌표 생성 안시키고 무시해야함 
+                pass 
             self.stop_flag  = True
             self.stop()
             # 차선 변경 실시
             
             # 장애물 옆으로 회피
- 
+            if self.obst_cnt >=2 or(self.prev_yaw - yaw) > 5*np.pi / 18 :  #10도 이상 차이가 나는 경우 avoid offset값 줄임  (self.prev_yaw - yaw) > 5*np.pi / 18 and 
+                print("2 개 연속으로 봄 ")
+                self.avoid_offset= 0.15
+
             if self.direction == 1: #위로가는 방향 
                 target_x = dy_ob_x 
                 target_y = dy_ob_y + avoid_offset
+            
             elif self.direction == 2: #왼쪽으로 가는 방향 
                 target_x = dy_ob_x - avoid_offset  # amcl상에서 이동해야 할 x좌표
                 target_y = dy_ob_y  # amcl상에서 이동해야 할 y좌표
 
                 #y축을 빼야 하는 경우도 있는걸 염두
+
             else: # 1차선일 때 #아래로 가는 방향 
                 #2차선으로 이동
                 target_x = dy_ob_x - dist       # amcl상에서 이동해야 할 x좌표
@@ -503,16 +514,36 @@ class Total:
 
     def stop_lane_callback(self, msg: Int32):
         self.prev_stop_lane_flag = self.stop_lane_flag
-        self.stop_lane_flag = msg.data > 70000
+        self.stop_lane_flag = msg.data > 65000
 
+        # 앞에 차량이 지나갈 때 정지선으로 판단할 위험이 있음
         if self.prev_stop_lane_flag and not self.stop_lane_flag:
-            # self.republish_initialpose() #이때 amcl 좌표 보정해버림 > 이 함수가 실행되어 Pose 재발행 
-            self.stop_lane_cnt += 1
+            if self.fixted_turn == 2:
+                self.stop_lane_cnt += 1
 
-        # 로터리 코드가 동작해야 함
-        # if self.stop_lane_cnt == 5:
-        #     self.stop()
-        #     self.stop_flag = True
+        # 로터리 앞 정지선을 발견한 이후에
+        if self.stop_lane_cnt == 1:
+            if self.min_dis.dis < 1.: # 도로에 차량이 있는 경우라면 정지
+                self.stop_flag = True
+                self.stop()
+
+            else:
+                self.target_vel = self.TURN_VEL
+                self.rotary_exit_flag = True
+                self.sequence = 0
+
+                self.stop_flag = False
+        
+        if not self.traffic_sign: return
+        if self.stop_lane_cnt > 1:
+            yaw = self.get_yaw_from_orientation(self.now_orientation)
+            # 정방향을 보고, 신호등이 정지 신호면
+            if 17 / 18 * np.pi <= abs(yaw) and self.traffic_sign < 16:
+                self.stop()
+                self.stop_flag = True
+                self.MISSION = 4
+        
+        else: self.stop_flag = False
             
     def mission3(self, msg: GetTrafficLightStatus):
         if not self.rotary_exit_flag: return
@@ -523,23 +554,14 @@ class Total:
         if msg.trafficLightIndex != 'SN000005':
             return
 
-        # 정지선이고 좌회전 신호(33), 직진 신호(16)가 아니라면
-        if self.stop_lane_cnt >= 5 and msg.trafficLightStatus < 16:
-            print('신호등 정지')
-            # 지금 여기서 멈추면 안됨... @수정@
-            self.stop()
-            self.stop_flag = True
-
-        else:
-            # @@@@@@@@@@@@@@@@@@@@@@@위험!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            #self.rotary_exit_flag = False
-            pass
+        self.traffic_sign = msg.trafficLightStatus
 
     def create_trajectory(self, tgt_x, tgt_y, dist):    
+        print("경로가 생성됨 ")
         if self. direction == 2:  # 첫번째 코너를 지난 후 정적장애물
             print("첫번째 코너를 지난 후  정적장애물")
-            x = np.array([0,  dist * 0.3,                    dist,               dist + 0.5])
-            y = np.array([0,           0, self.now_pose.x - tgt_x,  self.now_pose.x - tgt_x])
+            x = np.array([0,  dist * 0.3,                    dist+0.5,               dist + 1])
+            y = np.array([0,           0, self.now_pose.x - tgt_x,                        0])
             
 
             #print('trajectory x', x)
@@ -552,7 +574,7 @@ class Total:
 
             coefficients = f.c.T # 생성된 Cubic의 계수 (coefficients)
 
-            num = int((abs(dist) + 0.5) / 0.05) 
+            num = int((abs(dist) + 1) / 0.05) 
             x_new = np.linspace(x_scale[0], x_scale[-1], num) # 경로 상의 절대 x 좌표
             y_new = f(x_new)  #경로상의 절대 y좌표
 
@@ -605,15 +627,15 @@ class Total:
                 self.obstacle_avoidance += [pose]
                 self.obstacle_point += 1
 
-            # plt.figure(figsize = (dist, 0.5))
-            # plt.plot(x_new, y_new, 'b')
-            # plt.plot(x_scale, y_scale, 'ro')
-            # plt.plot(x_new, orientation_new, 'g')
+            plt.figure(figsize = (dist, 0.5))
+            plt.plot(self.rotated[:,0], self.rotated[:,1], 'b')
+            plt.plot(x_scale, y_scale, 'ro')
+            plt.plot(x_new, orientation_new, 'g')
             
-            # plt.title('Cubic Hermite Spline Interpolation')
-            # plt.xlabel('x')
-            # plt.ylabel('y')
-            # plt.show()
+            plt.title('Cubic Hermite Spline Interpolation')
+            plt.xlabel('x')
+            plt.ylabel('y')
+            plt.show()
 
         elif self.direction ==3 : # 로터리 지나고 1차선 주행일 때 정적장애물을 만남
             print("로터리 지나고  정적장애물")
@@ -674,20 +696,20 @@ class Total:
             
         else : # 첫번째 코너를 지나기 전 정적장애물
             print("첫번째 코너를 지나기 전 정적장애물")
-            x = np.array([self.now_pose.x, self.now_pose.x + dist * 0.3, tgt_x, tgt_x + 0.5])
-            y = np.array([self.now_pose.y, self.now_pose.y       , tgt_y       , tgt_y])
+            x = np.array([self.now_pose.x, self.now_pose.x + dist * 0.3, tgt_x + 0.5, tgt_x + 1, tgt_x + 1.5])
+            y = np.array([self.now_pose.y, self.now_pose.y, tgt_y, self.now_pose.y + 0.16, self.now_pose.y + 0.7])
 
             #print('trajectory x', x)
             #print('trajectory y', y)
 
             x_scale = x
             y_scale = y
-
-            f = CubicHermiteSpline(x_scale, y_scale, dydx = [0, 0, 0, 0])
+            current_yaw= self.get_yaw_from_orientation(self.now_orientation)
+            f = CubicHermiteSpline(x_scale, y_scale, dydx = [np.tan(current_yaw), 0, 0, 0, 4])
 
             coefficients = f.c.T # 생성된 Cubic의 계수 (coefficients)
 
-            num = int((abs(dist) + 0.5) / 0.05) 
+            num = int((abs(dist) + 1.5) / 0.05) 
             x_new = np.linspace(x_scale[0], x_scale[-1], num) # 경로 상의 절대 x 좌표
             y_new = f(x_new)   #경로상의 절대 y좌표
 
@@ -741,14 +763,14 @@ class Total:
             # plt.xlabel('x')
             # plt.ylabel('y')
             # plt.show()
-    
+
     def run(self):
         if not self.now_pose: return
         if not self.L_point or not self.R_point: return
 
         # MISSION 2, 3 구간에 라인으로만 주행
         if self.target_vel == self.LANE_DRIVE_VEL or self.target_vel == self.LANE_DRIVE_LAST_VEL:
-            print('라인으로 주행해요')
+            # print('라인으로 주행해요')
 
             e = 0.00000000001
             some_value = 1 / ((self.R_curv + e) * 2.5) # 살짝 키운값
@@ -762,33 +784,30 @@ class Total:
             m = (l7_pt + r7_pt) // 2
 
             steering_angle = self.mapping(some_value, -20, 20, 1, 0)
-            steering_angle -= (MID_POINT - m) / 1000
+            if not (self.L_curv < 0 and abs(self.R_curv) > 0.5):
+                steering_angle -= (MID_POINT - m) / 1000
             self.target_vel = self.LANE_DRIVE_VEL if self.fixted_turn != 2 else self.LANE_DRIVE_LAST_VEL
 
             if ((np.pi * 17 / 18 <= abs(self.get_yaw_from_orientation(self.now_orientation)) and abs(self.L_curv) < 0.1) or self.fixted_turn == 1) and self.turn_control_seq < len(self.turn_control):
-                if 0 < self.R_curv < 0.1:
+                if 0 < self.R_curv < 0.09:
                     print('이제는 다시 라인을 봐요')
                     self.turn_control_seq = len(self.turn_control)
                     self.fixted_turn = 2
                 
                 else:
                     print('고정 steer 로 주행해요', self.turn_control_seq)
+                    self.MISSION = 3
                     self.fixted_turn = 1
                     steering_angle = self.turn_control[self.turn_control_seq]
                     self.turn_control_seq += 1
 
-            elif self.stop_lane_cnt == 5:
+            elif self.stop_lane_cnt > 0:
                 print('정지선 5개 봤어요. 이제는 mission45 를 기반으로 주행해요')
-                
-                # 로터리 코드 삽입해야 함
-                # self.stop()
-                # self.stop_flag = True
-
                 self.target_vel = self.TURN_VEL
     
         else:
             # 로터리까지 모두 끝났다면 그 때는 way point 보고 주행
-            if not self.rotary_exit_flag and self.dist(self.goal_list[self.sequence].pose.position) < self.lookahead_distance:
+            if self.dist(self.goal_list[self.sequence].pose.position) < self.lookahead_distance:
                 if self.sequence == len(self.goal_list) - 1:
                     if self.dist(self.goal_list[self.sequence].pose.position) < 0.1:
                         self.stop_flag = True
@@ -802,30 +821,28 @@ class Total:
             calc_pose = self.goal_list[self.sequence].pose
             
             if self.obstacle_point > 0:
-                # print('장애물 pt', self.obstacle_point)
+                
+                calc_pose = self.obstacle_avoidance[len(self.obstacle_avoidance) - self.obstacle_point]
+
+                print('장애물 남은 시퀀스', self.obstacle_point)
                 if self.dist(calc_pose.position) < self.lookahead_distance and self.obstacle_point > 0:
                     self.obstacle_point -= 1
 
                 if self.obstacle_point == 0:
-                    print('안녕하세요')
-                    self.stop()
-                    self.stop_flag = True
-                    return
-
-                    # self.target_vel = self.LANE_DRIVE_VEL
-
-                    self.avoid_flag = False
-                    self.stop_flag = False
+                    if False:
+                        self.stop()
+                        self.stop_flag = True
+                        return
 
                     self.prev_obstacle_pt = None
                     self.obstacle_judge_cnt = 0
                     self.obstacle_type = None
 
                     self.obstacle_avoidance = []
+
+                    self.target_vel = self.LANE_DRIVE_VEL if self.fixted_turn < 2 else self.TURN_VEL
                     
                     return
-                
-                calc_pose = self.obstacle_avoidance[len(self.obstacle_avoidance) - self.obstacle_point]
 
             # 차량 좌표계는 (차량 x축) = (일반 y축), (차량 y축) = -(일반 x축)
             dx = calc_pose.position.x - self.now_pose.x
@@ -852,28 +869,21 @@ class Total:
             # 원래 4.93 , 1.8 중 뭐지?
             self.gain = 1
             
-            # TILT = abs(angle_difference) #틀어진 정도 
+            TILT = abs(angle_difference) #틀어진 정도 
 
-            # if self.target_vel == self.TURN_VEL: #코너 상황들어갈 때
-            #     pass
+            # print("angle_differecne 출력 ", TILT)
+            self.test_minmax.append(TILT)
+            # print ("최대최소 갱신", min(self.test_minmax), max(self.test_minmax))
+            if self.target_vel == self.TURN_VEL: #코너 상황들어갈 때
+                self.gain = self.gain = self.tilt_mapping(TILT)
                         
-            # elif self.target_vel != self.LANE_DRIVE_VEL:
-            #     print(self.target_vel)
-            #     if
-
-            #         self.target_vel = self.TURN_VEL 
-            #         print(f"코너 끝나고 수평 안맞을 때 gain값")
-
-            #     elif not self.rotary_exit_flag:
-            #         self.target_vel = self.INPO_VEL
-            #         print("직선에서 어긋났을때 = tgt vel 2.0일때 gain값")
-            
             steering_angle = self.gain * np.arctan2(2.0 * self.vehicle_length * np.sin(angle_difference) / self.lookahead_distance, 1.0)
             if self.target_vel != self.LANE_DRIVE_VEL:
-                print('pure 조향각', steering_angle, 'mapping 후', self.mapping(steering_angle))
+                #print('pure 조향각', steering_angle, 'mapping 후', self.mapping(steering_angle))
+                pass
             
             # #print("pure pursuit으로 계산되는 steering angle", steering_angle)
-            steering_angle = self.mapping(steering_angle) # + self.angle_offset)
+            steering_angle = self.mapping(steering_angle + self.angle_offset)
             
         if not self.stop_flag:
             # print('움직여요')
@@ -881,6 +891,20 @@ class Total:
             self.steer_pub.publish(Float64(data = steering_angle))
 
     def mapping(self, value, from_min=-0.25992659995162515, from_max=0.25992659995162515, to_min=0, to_max=1):
+        value = np.clip(value, from_min, from_max)
+
+        # 선형 변환 수행
+        from_range = from_max - from_min
+        to_range = to_max - to_min
+
+        # 선형 변환 공식 적용
+        mapped_value = ((value - from_min) / from_range) * to_range + to_min
+
+        return mapped_value
+
+    def tilt_mapping(self, value, from_min=0.002479444699213061, from_max=0.5195337456759869, to_min=1, to_max=1.3):
+        #   0.5811359661846451
+
         value = np.clip(value, from_min, from_max)
 
         # 선형 변환 수행
