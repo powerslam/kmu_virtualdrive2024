@@ -127,6 +127,13 @@ class Total:
         elif self.obstacle_type == 's': # 정적 장애물인 경우
             print('정적')
 
+            # 지금은 뭐지
+            # 그냥 라인 보고 가잖아
+            # 그래서 중간에 꼬일수도 있으니까 
+            # obstacle_avoidance 리스트를 만들어서
+            # 이 친구를 다 돌 때까지는 lane_detection 으로 안감
+            # 즉, pure pursuit 으로 간다 라고 하면 될 듯
+
             self.stop_flag = True
             self.stop()
             return
@@ -153,6 +160,7 @@ class Total:
             #     self.stop_flag = False
             #     return
             
+            # 조건을 바꾸긴 해야 함
             if 0.1 < obstacle_infos[chk_obstacle_idx].obst_y or obstacle_infos[chk_obstacle_idx].obst_y < -0.2:
                 self.stop_flag = False
                 return
@@ -167,8 +175,7 @@ class Total:
                 #     self.stop()
 
             # 지금은 정적 장애물의 경우에만 따지는 걸로
-            # 그리고 동적 장애물은 이전 위치와 현재 위치가 달라지면 알아보는 걸로
-            
+            # 그리고 동적 장애물은 이전 위치와 현재 위치가 달라지면 알아보는 걸로         
 
     def lane_callback(self, msg: LaneInformation):
         self.L_curv = msg.left_gradient

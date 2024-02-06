@@ -111,28 +111,28 @@ class CamObstacleDetect:
 
                 cv2.circle(self.img, (x, y), 2, (0, 0, 255), -1)
 
-                res = self.find_person(x, y)
+                res = self.find_white_car(x, y)
                 if res:
                     _x = -self.obstacle_info[idx][1]
                     _y = self.obstacle_info[idx][0]
 
-                    data.obstacles.append(ObstacleInfo(x=_x, y=_y, distance=np.hypot(_x, _y), is_dynamic=True))
-                    # cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (0, 255, 0), 2)
+                    data.obstacles.append(ObstacleInfo(x=_x, y=_y, distance=np.hypot(_x, _y), is_dynamic=False))
+                    cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (0, 255, 0), 2)
 
                 else:
                     _x = -self.obstacle_info[idx][1]
                     _y = self.obstacle_info[idx][0]
 
-                    data.obstacles.append(ObstacleInfo(x=_x, y=_y, distance=np.hypot(_x, _y), is_dynamic=False))
-                    # cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (255, 0, 0), 2)
+                    data.obstacles.append(ObstacleInfo(x=_x, y=_y, distance=np.hypot(_x, _y), is_dynamic=True))
+                    cv2.rectangle(self.img, (x - 20, y - 30), (x + 20, y + 10), (255, 0, 0), 2)
 
                 # print(y, x)
-                cv2.imshow('crop', self.img[max(0, y - 50):min(y + 40, self.h), max(0, x - 20):min(x +20, self.w)])
+                # cv2.imshow('crop', self.img[max(0, y - 50):min(y + 40, self.h), max(0, x - 20):min(x +20, self.w)])
 
         self.obstacles_pub.publish(data)
 
-        cv2.imshow('image', self.img)
-        cv2.waitKey(1)
+       #  cv2.imshow('image', self.img)
+        #cv2.waitKey(1)
 
     # 사람은 바지색 보고 판단하기
     def find_person(self, x, y):
@@ -158,6 +158,33 @@ class CamObstacleDetect:
         # print(len(person[y-30:y + 10, x - 20:x + 20].nonzero()[0]))
 
         return len(person[y - 50:y + 40, x - 20:x +20].nonzero()[0]) > 500
+    
+    # 사람은 바지색 보고 판단하기
+    def find_white_car(self, x, y):
+        # 남색 영역(바지)에 대한 색상범위
+        # 90, 110, 160, 0, 255
+        w_lo = np.array([0, 34, 80])
+        w_hi = np.array([179, 255, 255])
+
+        # 색상범위에 대한 mask 값
+        w_mask = cv2.inRange(self.hsv, w_lo, w_hi)
+
+        
+        car = cv2.bitwise_and(self.gray, self.gray, mask=w_mask)
+        # 후추 제거 후 빈칸 채우기 - 필요하지 않을 수도 있음
+        erode = cv2.morphologyEx(car, cv2.MORPH_ERODE, self.kernel3)
+        # cv2.imshow('erode', erode) # DEBUG
+        
+        car = cv2.morphologyEx(erode, cv2.MORPH_DILATE, self.kernel5) # 최종 출력
+        car[car > 0] = 255
+
+        #cv2.imshow('car', car[y - 20:y + 20, x - 20:x +20])
+        #cv2.waitKey(1)
+
+
+
+        print(len(car[y - 20:y + 20, x - 20:x +20].nonzero()[0]))
+        return len(car[y - 20:y + 20, x - 20:x +20].nonzero()[0]) > 500
 
 if __name__ == '__main__':
     try:

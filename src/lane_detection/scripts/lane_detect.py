@@ -20,6 +20,7 @@ class LaneDetection():
 
         self.lane_info_pub = rospy.Publisher('/lane_information', LaneInformation, queue_size=5)
         self.stop_lane_pub = rospy.Publisher('/stop_lane_information', Int32, queue_size=5)
+        self.yellow_lane_pub = rospy.Publisher('/yello_lane_information', Int32, queue_size=5)
 
         self.img = None
         self.bridge = CvBridge()
@@ -29,7 +30,7 @@ class LaneDetection():
         self.start_right_x = -1
 
         self.stop_lane_mask = np.zeros(shape=(480, 640, 3), dtype=np.uint8)
-        self.stop_lane_mask[250:440, 40:520] = 255
+        self.stop_lane_mask[50:150, 40:520] = 255
 
     def callback(self, msg: CompressedImage) -> None:
         self.img = self.get_image(msg)
@@ -55,6 +56,7 @@ class LaneDetection():
         w_hi = np.array([179, 64, 255])
 
         y_img = cv2.inRange(hsv, y_lo, y_hi)
+
         w_img = cv2.inRange(hsv, w_lo, w_hi)
 
         combined = cv2.bitwise_or(y_img, w_img)
@@ -78,14 +80,20 @@ class LaneDetection():
         warp = cv2.getPerspectiveTransform(src_pt, dst_pt)
         warp_img = cv2.warpPerspective(morph, warp, (w, h))
 
+        yellow_morph = cv2.morphologyEx(y_img, cv2.MORPH_OPEN, None)
+        yello_warp_img = cv2.warpPerspective(yellow_morph, warp, (w, h))
+
+        yello_warp_img[yello_warp_img > 0] = 255
+        self.yellow_lane_pub.publish(len(yello_warp_img.nonzero()[0]))
+
+        #cv2.imshow('yello', yello_warp_img)
+
         warp_img = cv2.cvtColor(warp_img, cv2.COLOR_GRAY2BGR)
         warp_img[warp_img > 0] = 255
 
         return warp_img
 
-    # 기울기가 무한대 == x축 y축 거리가 똑같은 경우 10000 이면 기울기가 무한대
-    # ptx == (x, y)
-    def get_gradient(self, pt1, pt2):
+    def get_gradient(self, pt1, pt2): 
         # 만약에 start를 하지도 못한 경우
         # if pt2[0] == -1 or pt1[0] == 0: return 480.
         if pt2[0] - pt1[0] == 0: return 480.
@@ -239,6 +247,8 @@ class LaneDetection():
         lane_info.right_gradient = -10000 if not len(lane_info.right_lane_points) else self.get_gradient((pub_grad_right_s_x, pub_grad_right_s_y), (pub_grad_right_e_x, pub_grad_right_e_y))
         
         masking = cv2.bitwise_and(self.bev_img, self.stop_lane_mask)
+
+        cv2.imshow('masking', masking)
         self.stop_lane_pub.publish(len(masking.nonzero()[0]))
         
         self.lane_info_pub.publish(lane_info)

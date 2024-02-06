@@ -77,6 +77,7 @@ class TrafficSub():
         res = len(masking.nonzero()[0])
         
         self.stop_flag = res > 70000
+        print(self.stop_flag)
         self.pub_steer.publish(Float64(data=0.5)) 
 
         if self.stop_flag and self.red_light:

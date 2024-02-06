@@ -12,11 +12,14 @@ add_message_files(
   FILES
 
   Rotary.msg
+  RotaryArray.msg
+
   LidarObstacleInfo.msg
   LidarObstacleInfoArray.msg
 
   ObstacleInfo.msg
   ObstacleInfoArray.msg
+
 )
 
 generate_messages(

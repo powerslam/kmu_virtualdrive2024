@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="lane_detection" type="lane_detect.py" name="lane_detect" output="screen"/>
+    <node pkg="slam_nav" type="lane_drive.py" name="lane_drive" output="screen"/>
+
+    <!-- localization -->
+    <include file="$(find obstacle_detect)/launch/obstacle.launch"/>
+</launch>

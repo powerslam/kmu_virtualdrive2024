@@ -8,7 +8,7 @@ import numpy as np
 from sensor_msgs.msg import LaserScan
 
 # publish 데이터
-from obstacle_detect.msg import Rotary                    # Rotary에 차량이 어디에 위치해 있는가
+from obstacle_detect.msg import Rotary,RotaryArray                  # Rotary에 차량이 어디에 위치해 있는가
 from obstacle_detect.msg import LidarObstacleInfo, LidarObstacleInfoArray   # 라이다에서 취득한 장애물 정보
 
 from bisect import bisect_left as lower_bound
@@ -21,7 +21,7 @@ class LidarObstacle:
         rospy.Subscriber("/lidar2D", LaserScan, self.callback)
 
         self.obstacle_pub = rospy.Publisher("/lidar_obstacle_information", LidarObstacleInfoArray, queue_size=10)
-        self.rotary_pub = rospy.Publisher("/rotary_info", Rotary, queue_size=10)
+        self.rotary_pub = rospy.Publisher("/rotary_info", RotaryArray, queue_size=10)
         self.degrees = range(-180, 180)
 
     def callback(self, msg: LaserScan):
@@ -36,31 +36,35 @@ class LidarObstacle:
         ranges = self.scan_msg.ranges[:180][::-1] + self.scan_msg.ranges[180:][::-1]
         
         for index, value in enumerate(ranges):
-            if self.degrees[index] < -90 or self.degrees[index] > 90: continue
+            if self.degrees[index] < -115 or self.degrees[index] > 115: continue
             # print(ranges[index], end=' ')
 
             # 3. 이내로 들어오는 경우
-            if 0 <= value <= 3.:
-                # print('umm')
+            if 0 <= value <= 2.5:
                 if not is_searching_obstacle:  # 처음 장애물 인덱스 판단을 실시할 때                    
                     # 시작했으니 1로 변경
-                    # print('umm??')
                     is_searching_obstacle = True
                     obst_size = 0
 
                     obstacle_prev_deg = self.degrees[index]
+                    obstacle_prev_dist = ranges[index]
                     obstacle_start_deg = self.degrees[index]
                     
-                # 장애물 찾는 중
-                elif abs(self.degrees[index] - obstacle_prev_deg) < 8:
-                    # print('umm??')
+                elif abs(ranges[index] - obstacle_prev_dist) < 1.:
                     obst_size += 1
                     obstacle_prev_deg = self.degrees[index]
+                    obstacle_prev_dist = ranges[index]
+                
+                # 장애물 찾는 중
+                elif abs(self.degrees[index] - obstacle_prev_deg) < 8:
+                    obst_size += 1
+                    obstacle_prev_deg = self.degrees[index]
+                    obstacle_prev_dist = ranges[index]
+                
             
             elif is_searching_obstacle:
-                # print(obst_size)
                 # 장애물의 크기가 너무 작으면(3보다 작은 경우) skip
-                if obst_size < 2 or obst_size > 20:
+                if obst_size < 2 or obst_size > 40:
                     obst_size = 0
                     is_searching_obstacle = False
 
@@ -78,20 +82,21 @@ class LidarObstacle:
         # print()
         self.obstacle_pub.publish(obstacle_arr)
 
-        rotary = Rotary()
+        rotary_infos = RotaryArray()
 
-        if len(obstacle_arr.obstacle_infos):
-            x = obstacle_arr.obstacle_infos[0].obst_x
-            y = obstacle_arr.obstacle_infos[0].obst_y
+        for info in obstacle_arr.obstacle_infos:
+            rotary = Rotary()
+            x, y = info.obst_x, info.obst_y
 
             rotary.dis = np.hypot(x, y)
             rotary.orientation = ord('l') if x < 0 else ord('r')
 
-        else:
-            rotary.dis = -10000
-            rotary.orientation = ord('n') # none => 현재 감지거리 내에 없다는 뜻
+            rotary_infos.moving_cars.append(rotary)
 
-        self.rotary_pub.publish(rotary)
+        if not len(obstacle_arr.obstacle_infos):
+            rotary_infos.moving_cars.append(Rotary(dis=-10000, orientation=ord('n')))
+
+        self.rotary_pub.publish(rotary_infos)
 
 def main():
     try:
