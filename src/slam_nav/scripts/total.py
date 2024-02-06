@@ -597,6 +597,30 @@ class Total:
     # 1. 회피경로 주행 중 또 장애물을 못 봄 => 
     # 2. 지금 장애물은 가까운 거 기준이라서 또 있는 장애물을 못 봄 => y 좌표 가지고 해결 가능 => y가 너무 가까우면 제외하면 되니까
 
+    def static_obst(self, key, yaw, info): # key가 1이면 첫번째 코너를 지나기 전 정적 장애물, 2이며 처번 째 코너를 지난 후 정적 장애물, 3이면 로터리 지난 후 정적 장애물
+        if key == 1:
+            if self.obstacle_point == -1:
+                rotated = self.rotation_matrix(yaw) @ np.array([[info.obst_x, info.obst_y, 1.]], dtype=np.float32).T
+                rotated = rotated.T[0]
+                rotated /= rotated[2]
+                rotated = rotated[:2]
+                
+                tx, ty = rotated
+                tx = tx - 0.4
+
+                self.move_left = [0, -np.tan(tx / ty), 0]
+                self.move_right = [0, np.tan(tx / ty), 0]
+
+        elif key == 2:
+            if self.obstacle_point == -1:
+                self.move_left = [np.pi/2, (np.pi/3) * 2, np.pi/2]
+                self.move_right = [np.pi/2, (np.pi/3), np.pi/2]
+
+        elif key == 3:
+            if self.obstacle_point == -1:
+                self.move_left = [np.pi, (np.pi / 6) * 7, np.pi]
+                self.move_right = [np.pi, (np.pi / 6) * 5, np.pi]
+
     def mission1(self, msg: LidarObstacleInfoArray): # 장애물 구간
         if self.MISSION != 1 and self.MISSION != 4: return
         if not self.now_pose: return
@@ -604,6 +628,7 @@ class Total:
         obstacle_infos = msg.obstacle_infos
         if not len(obstacle_infos): 
             if self.obstacle_type == 's':
+                print('복귀~')
                 self.return_ok = True
 
             return
@@ -617,16 +642,16 @@ class Total:
         dist = max(0., dists[chk_obstacle_idx] - 0.21)
         info = obstacle_infos[chk_obstacle_idx]
 
-        avoid_offset = 0.314
-
         yaw = abs(self.get_yaw_from_orientation(self.now_orientation)) #orientation is quat
 
         if yaw < np.pi / 4:
             print("위로가는 방향 ")
             self.direction = 1 
+
         elif yaw < 2.6:
             print( "왼쪽 가는 방향 ")
             self.direction = 2 
+
         else:
             print(" 아래로 가는 방향 ")
             self.direction = 3 
@@ -653,74 +678,35 @@ class Total:
             prev_v /= prev_norm
 
             angle = np.arccos(np.clip(np.dot(now_v, prev_v), -1., 1.))
-            print('각도', abs(angle))
             self.obstacle_type = 's' if abs(angle) < 0.1 else 'd'
 
         elif self.obstacle_type == 's': # 정적 장애물인 경우
-            self.obst_cnt += 1
-            print('정적')
+            angle = np.arctan2(abs(info.obst_x), info.obst_y)
 
-            if self.obstacle_point == -1:
-                # 나는 지금 항상 1차선에서 본다고 생각하고 첫 각도를 30도로 줬는데, 거리나 목표 지점의 각도 차이에 의해서
-                # np.pi / 6 -> ?? 으로 변경되어야 함
+            if info.obst_y < 0.2:
+                return
 
-                # now_yaw = self.get_yaw_from_orientation(self.now_orientation)
-                # target_yaw = np.arctan2(np.clip(x - now_yaw, -np.pi, np.pi))
-
-                self.move_left = [
-                    0, np.pi / 6, 0
-                ]
-
-                self.move_right = [
-                    0, -np.pi / 6, 0
-                ]
-
-                self.obstacle_point = 6
-                # [
-                #     0, np.pi / 9.5, np.pi / 6, np.pi / 9.5, 0,
-                #     -np.pi / 9.5, -np.pi / 6, -np.pi / 9.5, 0
-                # ]
-            
-                self.target_vel = self.OBST_VEL
-                # self.obstacle_point = len(self.target_yaw)
+            if angle >= np.pi / 9:
                 self.stop_flag = False
+                return
 
+            if dist > 0.7: # 너무 멀면 살짝 앞으로 이동
+                self.stop_flag = False
+                return
             
-            # self.target_vel = self.OBST_VEL
-            # if self.direction == 1 :
-            #     dy_ob_x = info.obst_y + self.now_pose.x # amcl상에서 장애물의 x좌표
-            #     dy_ob_y = -info.obst_x + self.now_pose.y # amcl상에서 장애물의 y좌표
-            # elif self.direction == 2: 
-            #     dy_ob_x = self.now_pose.x # amcl상에서 장애물의 x좌표
-            #     dy_ob_y = info.obst_y + self.now_pose.y # amcl상에서 장애물의 y좌표
-            # else: #@TODO : 미션 5에서 나오는 경우 , 그냥 장애물좌표 생성 안시키고 무시해야함 
-            #     pass 
-            # self.stop_flag  = True
-            # self.stop()
-            # # 차선 변경 실시
-            
-            # # 장애물 옆으로 회피
-            # if self.obst_cnt >= 2 or (self.prev_yaw - yaw) > 5*np.pi / 18 :  #10도 이상 차이가 나는 경우 avoid offset값 줄임  (self.prev_yaw - yaw) > 5*np.pi / 18 and 
-            #     print("2 개 연속으로 봄 ")
-            #     self.avoid_offset= 0.15
+            else:
+                self.stop_flag = True
+                self.stop()
 
-            # if self.direction == 1: #위로가는 방향 
-            #     target_x = dy_ob_x 
-            #     target_y = dy_ob_y + avoid_offset
-            
-            # elif self.direction == 2: #왼쪽으로 가는 방향 
-            #     target_x = dy_ob_x - avoid_offset  # amcl상에서 이동해야 할 x좌표
-            #     target_y = dy_ob_y  # amcl상에서 이동해야 할 y좌표
+                self.obst_cnt += 1
+                print('정적')
 
-            #     #y축을 빼야 하는 경우도 있는걸 염두
+                if self.obstacle_point == -1:
+                    self.static_obst(self.direction, yaw, info)
 
-            # else: # 1차선일 때 #아래로 가는 방향 
-            #     #2차선으로 이동
-            #     target_x = dy_ob_x - dist       # amcl상에서 이동해야 할 x좌표
-            #     target_y = dy_ob_y + avoid_offset      # amcl상에서 이동해야 할 y좌표
-
-            # self.stop_flag  = False
-            # self.create_trajectory( target_x, target_y, dist)
+                    self.obstacle_point = 6
+                    self.target_vel = self.OBST_VEL
+                    self.stop_flag = False
         
         elif self.obstacle_type == 'd': # 동적 장애물인 경우
             print('동적')
@@ -751,28 +737,28 @@ class Total:
     def stop_lane_callback(self, msg: Int32):
         if self.fixted_turn < 2: return
 
+        print('정지선 체크 중..', self.stop_lane_cnt, self.target_vel)
+
         self.prev_stop_lane_flag = self.stop_lane_flag
         self.stop_lane_flag = msg.data > 67000
 
         # 앞에 차량이 지나갈 때 정지선으로 판단할 위험이 있음
         if self.prev_stop_lane_flag and not self.stop_lane_flag:
-            if self.MISSION == 4 or self.MISSION == 2:
+            if self.MISSION == 2 or self.MISSION == 4:
                 self.stop_lane_cnt += 1
 
         # 로터리 앞 정지선을 발견한 이후에
-        if self.stop_lane_cnt == 1 and self.MISSION != 4:
+        if self.stop_lane_cnt == 1 and self.MISSION == 3:
             if abs(self.min_dis.dis) < 0.68: # 도로에 차량이 있는 경우라면 정지
                 print('차량이 앞에 있어요')
                 self.stop_flag = True
                 self.stop()
 
             else:
+                print('로터리를 탈출해요')
                 self.target_vel = 1203 # 로터리 스피드
                 self.rotary_exit_flag = True
-                self.sequence = 4
-                self.lookahead_distance = 1.3
                 self.stop_flag = False
-                self.run()
                 return
 
         if not self.traffic_sign: return
@@ -1031,11 +1017,11 @@ class Total:
             m = (l7_pt + r7_pt) // 2
 
             steering_angle = self.mapping(some_value, -20, 20, 1, 0)
-            if not (self.L_curv < 0 and abs(self.R_curv) > 0.5):
-                steering_angle -= (MID_POINT - m) / 1000
+            # if not (self.L_curv < 0 and abs(self.R_curv) > 0.5):
+            steering_angle -= (MID_POINT - m) / 1000
             self.target_vel = self.LANE_DRIVE_VEL if self.fixted_turn != 2 else self.LANE_DRIVE_LAST_VEL
 
-            if 0 < self.R_curv < 0.08:
+            if 0 < self.R_curv < 0.08 and self.fixted_turn != 2:
                 # print('초기화..')
                 self.prev_obstacle_pt = None
                 self.obstacle_judge_cnt = 0
@@ -1043,16 +1029,16 @@ class Total:
 
                 self.obstacle_avoidance = []
 
-                self.target_vel = self.LANE_DRIVE_VEL if self.fixted_turn < 2 else self.TURN_VEL
+                self.target_vel = self.LANE_DRIVE_VEL
 
             if ((np.pi * 17 / 18 <= abs(self.get_yaw_from_orientation(self.now_orientation)) and abs(self.L_curv) < 0.1) or self.fixted_turn == 1) and self.turn_control_seq < len(self.turn_control):
                 if 0 < self.R_curv < 0.09:
-                    print('이제는 다시 라인을 봐요')
+                    # print('이제는 다시 라인을 봐요')
                     self.turn_control_seq = len(self.turn_control)
                     self.fixted_turn = 2
                 
                 else:
-                    print('고정 steer 로 주행해요', self.turn_control_seq)
+                    # print('고정 steer 로 주행해요', self.turn_control_seq)
                     self.fixted_turn = 1
                     steering_angle = self.turn_control[self.turn_control_seq]
                     self.turn_control_seq += 1
@@ -1062,6 +1048,10 @@ class Total:
                 print('정지선을 봤어요. 이제는 mission45 를 기반으로 주행해요')
                 self.target_vel = self.TURN_VEL
                 self.MISSION = 3
+            
+            else:
+                # print('라인으로 주행해요')
+                pass
     
         elif self.obstacle_point >= 0:
             now_yaw = self.get_yaw_from_orientation(self.now_orientation)
@@ -1069,7 +1059,7 @@ class Total:
             # 2번에 걸쳐서 이 과정이 이루어져야 함
             # obstacle_infos의 길이가 0일 때 
 
-            # 6 5 4
+            # 7 6 5
             if self.obstacle_point > 3:
                 diff = self.move_left[self.obstacle_point % 3] - now_yaw
 
@@ -1086,11 +1076,11 @@ class Total:
                 diff = 0.0 - now_yaw
 
             # M - m error
-            steering_angle = self.mapping(np.clip(diff * 1.6, -np.pi / 6, np.pi / 6), -np.pi / 6 , np.pi / 6, 1, 0)
+            steering_angle = self.mapping(np.clip(diff * 1.8, -np.pi / 6, np.pi / 6), -np.pi / 6 , np.pi / 6, 1, 0)
             
             # print(steering_angle)
             if self.obstacle_point == -1:
-                if True:
+                if False:
                     self.stop()
                     self.stop_flag = True
                     return
@@ -1120,7 +1110,7 @@ class Total:
             
             yaw = self.get_yaw_from_orientation(self.now_orientation)
             if abs(yaw) >= 17 / 18 * np.pi:
-                # print('미션이 4가 되었어요')
+                print('미션이 4가 되었어요')
                 self.MISSION = 4
 
             # if self.obstacle_point > 0:
@@ -1187,8 +1177,6 @@ class Total:
             # #print("pure pursuit으로 계산되는 steering angle", steering_angle)
             steering_angle = self.mapping(steering_angle + self.angle_offset)
             
-
-
         if not self.stop_flag:
             # print('움직여요')
             self.vel_pub.publish(Float64(data = self.target_vel))
