@@ -46,6 +46,8 @@ class Total:
         self.traffic_sign = None
         self.prev_R_curv = None
 
+        self.obstacle_time = None
+
         # 현재 수행해야 할 미션이 무엇인지 가리키는 함수
         self.MISSION = 0
 
@@ -55,6 +57,7 @@ class Total:
         self.vel_pub = rospy.Publisher("/commands/motor/speed", Float64, queue_size=1)
         self.steer_pub = rospy.Publisher('/commands/servo/position', Float64, queue_size=1)
         self.path_pub = rospy.Publisher('/global_pah', Path, queue_size=1)
+        self.throttle_interpolator_end_pub = rospy.Publisher('/end', Int32, queue_size=1)
         
         self.stop_data = Float64(data=0)
 
@@ -87,6 +90,8 @@ class Total:
 
         # 로터리 및 좌회전 미션(로터리 앞 정지선 ~ 골 지점까지)
         self.goal_list = []
+
+        self.obstacle_time = None
 
         rospack = rospkg.RosPack()
         slam_nav_pkg_path = rospack.get_path('slam_nav')
@@ -223,7 +228,7 @@ class Total:
 
         # # 라이다 장애물 받아오기
         self.obstacles = None
-        rospy.Subscriber('/lidar_obstacle_information', LidarObstacleInfoArray, self.mission1)
+        rospy.Subscriber('/obstacle_information', ObstacleInfoArray, self.mission1)
 
         # 로터리 변수, 플래그
         self.move_car_ori = None
@@ -364,8 +369,13 @@ class Total:
         elif self.target_vel == self.OBST_VEL:
             self.lookahead_distance = 0.6
 
-        if self.MISSION == 0: self.mission0()
-        else: self.run()
+        if self.MISSION == 0: 
+            self.mission0()
+            self.throttle_interpolator_end_pub.publish(Int32(data=0))
+        
+        else: 
+            self.run()
+            self.throttle_interpolator_end_pub.publish(Int32(data=1))
 
     def get_yaw_from_orientation(self, quat):
         euler = tf.transformations.euler_from_quaternion(
@@ -383,7 +393,7 @@ class Total:
         if self.client.get_state() == GoalStatus.SUCCEEDED:
             self.client.cancel_goal()
             # TEB 종료
-            os.system('rosnode kill /throttle_interpolator')
+            # os.system('rosnode kill /throttle_interpolator')
             # os.system('rosnode kill /move_base')
             self.MISSION = 1
 
@@ -400,7 +410,7 @@ class Total:
     def static_obst(self, key, yaw, info): # key가 1이면 첫번째 코너를 지나기 전 정적 장애물, 2이며 처번 째 코너를 지난 후 정적 장애물, 3이면 로터리 지난 후 정적 장애물
         if key == 1:
             if self.obstacle_point == -1:
-                rotated = self.rotation_matrix(yaw) @ np.array([[info.obst_x, info.obst_y, 1.]], dtype=np.float32).T
+                rotated = self.rotation_matrix(yaw) @ np.array([[info.x, info.y, 1.]], dtype=np.float32).T
                 rotated = rotated.T[0]
                 rotated /= rotated[2]
                 rotated = rotated[:2]
@@ -421,11 +431,17 @@ class Total:
                 self.move_left = [np.pi, (np.pi / 6) * 5, np.pi]
                 self.move_right = [np.pi, (np.pi / 6) * 7, np.pi]
 
-    def mission1(self, msg: LidarObstacleInfoArray): # 장애물 구간
+    def mission1(self, msg: ObstacleInfoArray): # 장애물 구간
         if self.MISSION != 1 and self.MISSION != 4: return
         if not self.now_pose: return
 
-        obstacle_infos = msg.obstacle_infos
+        if self.obstacle_time and rospy.Time.now().secs - self.obstacle_time >= 5:
+            self.obstacle_type = None
+            self.obstacle_time = None
+            self.obstacle_judge_cnt = 0
+            self.prev_obstacle_pt = None
+
+        obstacle_infos = msg.obstacles
         if not len(obstacle_infos): 
             if self.obstacle_type == 's':
                 print('복귀~')
@@ -435,8 +451,9 @@ class Total:
         
         if self.obstacle_point > 0: return
 
+
         # 나랑 가장 가까운 장애물을 가지고 판단
-        dists = np.array([np.hypot(info.obst_x, info.obst_y) for info in obstacle_infos])
+        dists = np.array([np.hypot(info.x, info.y) for info in obstacle_infos])
         chk_obstacle_idx = np.argmin(dists)
 
         dist = max(0., dists[chk_obstacle_idx] - 0.21)
@@ -468,26 +485,34 @@ class Total:
                 self.prev_obstacle_pt = obstacle_infos[chk_obstacle_idx]
                 return
 
-            now_v = np.array([obstacle_infos[chk_obstacle_idx].obst_x, obstacle_infos[chk_obstacle_idx].obst_y])
+            now_v = np.array([obstacle_infos[chk_obstacle_idx].x, obstacle_infos[chk_obstacle_idx].y])
             now_norm = np.linalg.norm(now_v)
             now_v /= now_norm
             
-            prev_v = np.array([self.prev_obstacle_pt.obst_x, self.prev_obstacle_pt.obst_y])
+            prev_v = np.array([self.prev_obstacle_pt.x, self.prev_obstacle_pt.y])
             prev_norm = np.linalg.norm(prev_v)
             prev_v /= prev_norm
 
             angle = np.arccos(np.clip(np.dot(now_v, prev_v), -1., 1.))
-            self.obstacle_type = 's' if abs(angle) < 0.1 else 'd'
+            # self.obstacle_type = 's' if abs(angle) < 0.1 else 'd'
+            print(info.is_dynamic)
+            if info.is_dynamic:
+                self.obstacle_type = 'd'
+
+            else:
+                self.obstacle_type = 's'
+
+
+            self.obstacle_type = 'd' if info.is_dynamic else 's'
 
         elif self.obstacle_type == 's': # 정적 장애물인 경우
-            angle = np.arctan2(info.obst_x, info.obst_y)
+            angle = np.arctan2(info.x, info.y)
 
-            if info.obst_y < 0.2:
+            if info.y < 0.2:
                 return
 
             # 2차선인데
             if not self.first_lane and angle < -np.pi / 18:
-                print('480')
                 self.stop_flag = False
                 return
 
@@ -510,9 +535,10 @@ class Total:
         
         elif self.obstacle_type == 'd': # 동적 장애물인 경우
             print('동적')
+            self.obstacle_time = rospy.Time.now().secs
             
             # 장애물의 x 좌표가 0보다 큰 경우 ==> 차선을 탈출했다고 판정하고 출발
-            if obstacle_infos[chk_obstacle_idx].obst_x > 0.25 or obstacle_infos[chk_obstacle_idx].obst_x < -0.65:
+            if obstacle_infos[chk_obstacle_idx].x > 0.25 or obstacle_infos[chk_obstacle_idx].x < -0.65:
                 self.stop_flag = False
                 return
             
@@ -532,7 +558,7 @@ class Total:
         print('정지선 체크 중..', self.stop_lane_cnt, self.target_vel)
 
         self.prev_stop_lane_flag = self.stop_lane_flag
-        self.stop_lane_flag = msg.data > 67000
+        self.stop_lane_flag = msg.data > 35000
 
         # 앞에 차량이 지나갈 때 정지선으로 판단할 위험이 있음
         if self.prev_stop_lane_flag and not self.stop_lane_flag:
@@ -559,7 +585,7 @@ class Total:
         if self.MISSION != 4: return
     
         # 근데 차량을 보고 이 친구가 
-        if self.stop_lane_cnt == 2 or True :
+        if self.stop_lane_cnt == 2:
             #print('정지선을 한 번 더 봤어요', self.stop_lane_cnt, self.traffic_sign)
             yaw = self.get_yaw_from_orientation(self.now_orientation)
             # 정방향을 보고, 신호등이 정지 신호면
@@ -575,6 +601,10 @@ class Total:
         else: self.stop_flag = False
             
     def mission3(self, msg: GetTrafficLightStatus):
+        if self.sequence >= 30:
+            self.traffic_sign = 33
+            self.stop_lane_cnt = 100
+
         if not self.rotary_exit_flag: return
         #print('정지선', self.stop_lane_flag)
         #print('신호', msg.trafficLightStatus < 16)
@@ -587,6 +617,11 @@ class Total:
     def run(self):
         if not self.now_pose: return
         if not self.L_point or not self.R_point: return
+        if self.sequence == len(self.goal_list) - 1:
+            if self.dist(self.goal_list[self.sequence].pose.position) < 0.3:
+                self.stop_flag = True
+                self.stop()
+                return
 
         steering_angle = 0.5
 
