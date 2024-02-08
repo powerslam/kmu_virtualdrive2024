@@ -1,7 +1,25 @@
-제어 코드 관련 메모
-1. 속도를 바꾸고 싶다.
-   * teb_local_planner_params.yaml 수정하면 됨 (max_vel_x 이 부분)
-2. navigation 제어 코드
-   * navigation_client.py ==> 여기서 구현됨
-     * 목표 지점까지 이동하는 코드임
-4. dual_ekf_navsat_example.yaml process_noise_covariance 코드 수정됨
+# 2023 HL 만도 & HL 클레무브 자율주행 모빌리티 경진대회 VLF (대학)
+최종: 장려상(4등)
+
+# 대회 소개
+![image](https://github.com/powerslam/kmu_virtualdrive2024/assets/97532643/7c97e092-e057-42c9-88dc-0ae82135d3d7)
+
+
+# 팀원
+* 이강욱
+* 손희문
+* 유민아
+* 이상혁
+
+# 대회 미션
+* SLAM 미션
+* 정적&동적 장애물 회피
+* 로터리 주행
+* 신호등 미션
+* 차선 주행
+
+# 결과
+수상 X
+
+# 소감
+* ROS 시스템을 활용한 대회 진행은 처음이라 코드가 난잡하게 짜여진 것 같다. 모드 매니저 같은 것을 왜 쓰는지 알 수 있었던 대회이다.
